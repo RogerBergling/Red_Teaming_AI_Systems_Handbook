@@ -1,0 +1,273 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Module 01</span>
+    <h1 id="m1">Introduction to Red Teaming AI Systems</h1>
+    <p class="dek">How artificial intelligence changes the attack surface — and what a red team must add to its playbook when the target reasons, retrieves and acts.</p>
+  </div>
+
+  <div class="objectives">
+    <div class="lbl">Learning objectives</div>
+    <ul>
+      <li>Explain why AI systems expand, rather than replace, the traditional attack surface.</li>
+      <li>Decompose an AI-enabled application into data, model, serving, application, agent and tool layers.</li>
+      <li>Map AI-specific attacks onto a red team lifecycle and onto MITRE ATLAS and the OWASP LLM and Agentic Top 10s.</li>
+      <li>Distinguish direct and indirect prompt injection, and explain why the latter is the dominant enterprise risk.</li>
+      <li>Design a repeatable trial methodology that measures attack success rate rather than collecting anecdotes.</li>
+      <li>Recognise the legal, ethical and safety constraints that apply before any testing begins.</li>
+    </ul>
+  </div>
+
+  <p class="lede">AI does not create a second internet. It adds a new kind of principal to systems that already exist: a component that interprets natural language, makes judgement calls, and is increasingly trusted to act. That single change — from executing instructions to interpreting intent — reshapes almost every assumption a security team has made about input validation, authorisation and trust boundaries.</p>
+
+  <p>Consider the difference between a traditional web application and an LLM-backed assistant with the same business function. The web application exposes a fixed set of endpoints, each with a schema, each validated server-side. The assistant exposes one endpoint that accepts arbitrary natural language and routes it, internally, to a set of capabilities chosen at runtime. The attack surface is no longer the sum of the endpoints. It is the sum of the endpoints, <em>plus every document the assistant reads</em>, <em>plus every tool it can call</em>, <em>plus every memory it writes</em>, and <em>plus the model's own learned behaviour</em>, which nobody specified line by line and nobody can fully enumerate.</p>
+
+  <h2 id="m1-why">1.1 Five properties that change the game</h2>
+
+  <h3>Natural language is an executable input channel</h3>
+  <p>In a classical system, data and instructions occupy different syntactic categories. A filename is data; a shell command is code; the parser knows which is which. In an LLM system, both arrive as tokens in the same context window. A retrieved document, a calendar invite, a web page, a support ticket and the user's request are all "text" as far as the model is concerned. Unless the application builds a mechanism to mark provenance and enforce instruction hierarchy, <strong>any text the model can read is a potential instruction</strong>. This is the root cause of prompt injection, and it is architectural, not a bug to be patched in the model.</p>
+
+  <h3>Behaviour is learned, not specified</h3>
+  <p>If a rule such as "refunds above €500 need approval" exists only in the system prompt or in the model's learned behaviour, there may be no deterministic branch enforcing it. The model has generalised from pretraining and examples, so its compliance is probabilistic and sensitive to phrasing, context length, language, formatting and message order. That is a reason to put the rule in conventional authorisation logic, not a reason to trust the prompt. The model may interpret what the user is asking for; the surrounding system must decide whether the resulting action is permitted. Testing therefore has two jobs: sample the model's interpretation, and verify that the deterministic controls hold even when that interpretation is wrong.</p>
+
+  <h3>The system is a composition</h3>
+  <p>A production AI feature is rarely one model. It is a base model, possibly a fine-tune, possibly a LoRA adapter, a tokenizer, a system prompt assembled from templates, a retrieval index, a reranker, guardrail classifiers, an orchestration framework and a set of tools. Each component has its own supply chain, its own version and its own failure modes. The security properties of the composition are not the sum of the parts: a safe model behind an unsafe tool is an unsafe system.</p>
+
+  <h3>Agency converts language into authority</h3>
+  <p>A chatbot that can only emit text can embarrass its owner. An agent that can send email, issue refunds, query a database, open pull requests or call a cloud API can cause financial and operational loss. The critical question for any AI feature is not "what can it say?" but <strong>"what can it do, with whose credentials, and who reviews the action?"</strong> Excessive agency is the bridge from a content problem to a security incident. The remedy is not to make the model more cautious; it is to make the authority explicit and deterministic outside the model. The model can propose a tool call, but a policy layer should bind that call to the user's identity, check the arguments against the permitted action and decide whether approval is required.</p>
+
+  <h3>Data is both input and asset</h3>
+  <p>Training data, retrieval corpora and embeddings are assets in their own right, and they are frequently sensitive. Embeddings were long treated as opaque and therefore harmless; research on inversion has shown that they can leak substantial verbatim content. Logs of prompts and completions become a new store of personal and confidential data, often with weaker access control than the systems they describe.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 350" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs>
+        <marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#5b6b7c"/>
+        </marker>
+      </defs>
+      <!-- trust boundary -->
+      <rect x="150" y="18" width="360" height="314" fill="none" stroke="#c2410c" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="158" y="12" font-size="7.5" fill="#c2410c" letter-spacing="1">TRUST BOUNDARY — UNTRUSTED CONTENT CROSSES HERE</text>
+
+      <!-- layers -->
+      <g font-size="9">
+        <rect x="20" y="30" width="110" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="50" font-weight="bold" fill="#0f4f4a">Data plane</text>
+        <text x="30" y="64" font-size="7.5" fill="#3d5a5a">corpus · datasets · logs</text>
+        <text x="30" y="75" font-size="7.5" fill="#3d5a5a">vector index · memory</text>
+
+        <rect x="20" y="100" width="110" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="120" font-weight="bold" fill="#0f4f4a">Model plane</text>
+        <text x="30" y="134" font-size="7.5" fill="#3d5a5a">weights · adapters</text>
+        <text x="30" y="145" font-size="7.5" fill="#3d5a5a">tokenizer · config</text>
+
+        <rect x="20" y="170" width="110" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="190" font-weight="bold" fill="#0f4f4a">Serving plane</text>
+        <text x="30" y="204" font-size="7.5" fill="#3d5a5a">inference server</text>
+        <text x="30" y="215" font-size="7.5" fill="#3d5a5a">gateway · autoscaling</text>
+
+        <rect x="20" y="240" width="110" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="260" font-weight="bold" fill="#0f4f4a">Platform</text>
+        <text x="30" y="274" font-size="7.5" fill="#3d5a5a">Kubernetes · IAM</text>
+        <text x="30" y="285" font-size="7.5" fill="#3d5a5a">network · secrets</text>
+
+        <!-- app stack -->
+        <rect x="175" y="40" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="56" font-weight="bold" fill="#7a3a08">Application layer</text>
+        <text x="188" y="69" font-size="7.5" fill="#7a5a3a">UI · API · authentication · prompt assembly · output handling</text>
+
+        <rect x="175" y="86" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="102" font-weight="bold" fill="#7a3a08">Orchestration &amp; policy</text>
+        <text x="188" y="115" font-size="7.5" fill="#7a5a3a">routing · guardrails · instruction hierarchy · rate limits</text>
+
+        <rect x="175" y="132" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="148" font-weight="bold" fill="#7a3a08">Agent runtime</text>
+        <text x="188" y="161" font-size="7.5" fill="#7a5a3a">planner · scratchpad · long-term memory · subagents</text>
+
+        <rect x="175" y="178" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="194" font-weight="bold" fill="#7a3a08">Inference</text>
+        <text x="188" y="207" font-size="7.5" fill="#7a5a3a">base model · fine-tune · adapters · sampling parameters</text>
+
+        <rect x="175" y="224" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="240" font-weight="bold" fill="#7a3a08">Retrieval &amp; tools</text>
+        <text x="188" y="253" font-size="7.5" fill="#7a5a3a">vector search · reranker · MCP servers · APIs · code runner</text>
+
+        <rect x="175" y="270" width="310" height="36" rx="3" fill="#e9eef3" stroke="#64748b"/>
+        <text x="188" y="286" font-weight="bold" fill="#33465a">Downstream consumers</text>
+        <text x="188" y="299" font-size="7.5" fill="#4a5a6b">humans · workflows · databases · email · payments · CI/CD</text>
+
+        <!-- right side -->
+        <rect x="540" y="86" width="160" height="58" rx="3" fill="#fff" stroke="#c2410c"/>
+        <text x="552" y="104" font-weight="bold" fill="#a33a0c">Untrusted inputs</text>
+        <text x="552" y="118" font-size="7.5" fill="#6b4a3a">web · email · tickets · docs</text>
+        <text x="552" y="130" font-size="7.5" fill="#6b4a3a">other agents · tool output</text>
+
+        <rect x="540" y="170" width="160" height="58" rx="3" fill="#fff" stroke="#64748b"/>
+        <text x="552" y="188" font-weight="bold" fill="#33465a">Third parties</text>
+        <text x="552" y="202" font-size="7.5" fill="#4a5a6b">model APIs · MCP servers</text>
+        <text x="552" y="214" font-size="7.5" fill="#4a5a6b">SaaS connectors · registries</text>
+      </g>
+
+      <!-- arrows -->
+      <g stroke="#5b6b7c" stroke-width="0.8" fill="none">
+        <path d="M130 56 H172" marker-end="url(#ar)"/>
+        <path d="M130 126 H172" marker-end="url(#ar)"/>
+        <path d="M130 196 H172" marker-end="url(#ar)"/>
+        <path d="M130 266 H172" marker-end="url(#ar)"/>
+        <path d="M485 240 H520 V110 H537" marker-end="url(#ar)"/>
+        <path d="M700 200 H715 V290 H330" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+      </g>
+    </svg>
+    <figcaption><b>Figure 1.1 — The six planes of an AI system.</b> Traditional controls concentrate on the application and platform planes. AI-specific risk concentrates in the retrieval, tool and model planes, where untrusted content is interpreted as instruction and where learned behaviour substitutes for specified logic.</figcaption>
+  </figure>
+
+  <h2 id="m1-anatomy">1.2 Anatomy of an AI-enabled target</h2>
+
+  <p>Red teams do not attack "AI". They attack concrete components, each with an owner, a version and a configuration. The decomposition below is the one used throughout this handbook; it maps cleanly to the asset inventory students build in Module 2 and the threat model they build in Module 10.</p>
+
+  <table>
+    <thead><tr><th style="width:19%">Component</th><th style="width:33%">What it is</th><th style="width:24%">Adversary objective</th><th>Typical weakness</th></tr></thead>
+    <tbody>
+      <tr><td><b>Prompt assembly</b></td><td>System prompt, templates, few-shot examples, retrieved context, user input, tool results</td><td>Rewrite priorities; exfiltrate the system prompt; inject instructions</td><td>No provenance separation; string concatenation; secrets in the prompt</td></tr>
+      <tr><td><b>Model</b></td><td>Base weights, fine-tune, adapters, decoding configuration</td><td>Steal, poison, backdoor, jailbreak, fingerprint</td><td>Unverified downloads; pickle deserialisation; no version pinning</td></tr>
+      <tr><td><b>Memory</b></td><td>Conversation buffer, summaries, long-term profile store, vector-backed memory</td><td>Persist an instruction; poison future sessions; read other users' memory</td><td>Shared namespace; no write authorisation; no expiry; no provenance</td></tr>
+      <tr><td><b>Retrieval</b></td><td>Chunking, embeddings, index, filters, reranker, citation layer</td><td>Poison corpus; bypass ACLs; steer ranking; exfiltrate documents</td><td>Ingestion without review; tenant filter missing; ACL not applied at query time</td></tr>
+      <tr><td><b>Tools</b></td><td>Function calls, MCP servers, plugins, code interpreter, browser, SaaS connectors</td><td>Invoke unintended action; escalate privilege; move data out</td><td>Over-broad scopes; shared service accounts; no per-action authorisation</td></tr>
+      <tr><td><b>Orchestration</b></td><td>Agent framework, planner, router, subagent spawning, A2A protocol</td><td>Hijack plan; impersonate an agent; corrupt delegation</td><td>Implicit inter-agent trust; unsigned messages; no task-level authZ</td></tr>
+      <tr><td><b>Serving</b></td><td>vLLM, SGLang, TGI (maintenance), Triton, TorchServe (legacy), Ollama, managed endpoints</td><td>Model theft; RCE; resource exhaustion; model swap; unverified token auth</td><td>Unauthenticated APIs; default ports; path traversal; no quotas</td></tr>
+      <tr><td><b>Platform</b></td><td>Kubernetes, GPU nodes, registries, pipelines, secrets, identity</td><td>Cluster takeover; cloud credential theft; cryptojacking</td><td>Over-privileged service accounts; exposed dashboards; IMDS reachable from pods</td></tr>
+      <tr><td><b>Observability</b></td><td>Prompt logs, traces, eval results, cost dashboards</td><td>Harvest secrets and PII; hide activity; poison evals</td><td>Unredacted logs; broad read access; no tamper protection</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m1-lifecycle">1.3 The red team lifecycle, adapted</h2>
+
+  <p>The classical phases still apply, but their content changes. The table below is the working model for the rest of the course. Note that "initial access" in an AI engagement is often not a shell — it is a foothold in the model's context, a poisoned document, or an unauthenticated inference endpoint.</p>
+
+  <table>
+    <thead><tr><th style="width:17%">Phase</th><th style="width:43%">Traditional focus</th><th>AI-specific focus</th></tr></thead>
+    <tbody>
+      <tr><td><b>Scoping</b></td><td>Networks, hosts, identities, rules of engagement</td><td>Models, corpora, agent identities, tool authority, provider boundaries, data classes</td></tr>
+      <tr><td><b>Reconnaissance</b></td><td>Ports, services, versions, employees, leaks</td><td>AI inventory, model fingerprints, exposed inference APIs, agent cards, RAG sources, MCP registries</td></tr>
+      <tr><td><b>Initial access</b></td><td>Exploit, credential, phishing</td><td>Prompt injection via user input or ingested content; exposed endpoint; malicious tool or model artefact</td></tr>
+      <tr><td><b>Execution</b></td><td>Code execution on a host</td><td>Instruction execution inside an agent; tool invocation; code interpreter abuse</td></tr>
+      <tr><td><b>Persistence</b></td><td>Services, scheduled tasks, implants</td><td>Memory poisoning; poisoned corpus document; malicious adapter or MCP server; agent registration</td></tr>
+      <tr><td><b>Privilege escalation</b></td><td>Kernel, service account, domain admin</td><td>Tool scope escalation; confused deputy; delegation across agents; cloud credentials via SSRF</td></tr>
+      <tr><td><b>Defence evasion</b></td><td>AV bypass, log tampering</td><td>Guardrail evasion, output encoding, instruction smuggling, low-and-slow token use</td></tr>
+      <tr><td><b>Collection</b></td><td>File shares, databases, mailboxes</td><td>RAG corpus, vector index, conversation history, embeddings, prompt logs</td></tr>
+      <tr><td><b>Exfiltration</b></td><td>C2, DNS, cloud storage</td><td>Markdown images, links, tool calls, generated artefacts, encoded output</td></tr>
+      <tr><td><b>Impact</b></td><td>Ransomware, destruction</td><td>Fraudulent action, data disclosure, workflow corruption, cost amplification, reputational harm</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box note">
+    <span class="lbl">Field note — the initial-access question</span>
+    <p>Ask early: <em>what content does the model read that an outsider can influence?</em> A support assistant that reads customer emails, a coding assistant that reads repository issues, a research agent that browses the web, a copilot that searches shared drives — each has a channel by which an attacker can place text in front of the model without ever authenticating. In mature enterprises this is usually the shortest path to impact, and it is the path most traditional penetration tests never touch.</p>
+  </div>
+
+  <h2 id="m1-frameworks">1.4 Frameworks worth knowing</h2>
+
+  <p>Frameworks are useful for coverage and communication, not as a substitute for threat modelling. Four matter in practice.</p>
+
+  <p><strong>MITRE ATLAS</strong> is the adversarial-ML analogue of ATT&CK. It catalogs tactics from reconnaissance and resource development through ML model access, execution, persistence, privilege escalation, collection, exfiltration and impact, with technique entries and case studies. It is the natural language for reporting AI findings to a SOC that already speaks ATT&CK, and this handbook tags techniques to it where a mapping is stable.</p>
+
+  <p><strong>OWASP Top 10 for LLM Applications (2026)</strong> gives a compact risk taxonomy: prompt injection (<span class="nw">LLM01</span>), sensitive information disclosure (<span class="nw">LLM02</span>), excessive agency (<span class="nw">LLM03</span>), supply chain (<span class="nw">LLM04</span>), data and model poisoning (<span class="nw">LLM05</span>), unbounded consumption (<span class="nw">LLM06</span>), misinformation (<span class="nw">LLM07</span>), hidden context exposure (<span class="nw">LLM08</span>), vector and embedding weaknesses (<span class="nw">LLM09</span>) and improper output handling (<span class="nw">LLM10</span>). The 2026 edition, published on 3 August 2026, kept the ten categories but moved eight of them and renamed system prompt leakage as hidden context exposure. It is excellent for awareness and control mapping, less useful for planning an engagement because the categories overlap. Check the edition before quoting an identifier: <span class="nw">LLM03:2026</span> is excessive agency, not supply chain.</p>
+
+  <p><strong>OWASP Top 10 for Agentic Applications (2026)</strong> and the <strong>Agent Control Standard (2026)</strong>, published in September 2026, extend this to agent goal hijack (ASI01), tool misuse and exploitation (ASI02), identity and privilege abuse (ASI03), agentic supply chain vulnerabilities (ASI04), unexpected code execution (ASI05), memory and context poisoning (ASI06), insecure inter-agent communication (ASI07), cascading failures (ASI08), human-agent trust exploitation (ASI09) and rogue agents (ASI10). Where the LLM Top 10 treats the model as the centre, the agentic list and the Control Standard treat the <em>system of agents</em> as the centre and describe the controls expected around it.</p>
+
+  <p><strong>NIST AI RMF</strong> (Govern, Map, Measure, Manage) is the governance vocabulary that risk committees and regulators recognise. The <em>Adversarial ML Taxonomy</em> in NIST AI 100-2 separates evasion, poisoning and privacy attacks, which is a useful check that a test plan covers all three rather than only prompt injection. ISO/IEC 42001 provides the management-system wrapper; the EU AI Act adds legal obligations for general-purpose and high-risk systems that shape what an organisation must be able to evidence.</p>
+
+  <table class="compact">
+    <thead><tr><th style="width:26%">Framework</th><th style="width:30%">Use it for</th><th>Limitation</th></tr></thead>
+    <tbody>
+      <tr><td>MITRE ATLAS</td><td>Technique coverage, SOC communication, detection mapping</td><td>Fast-moving; some entries lag real-world practice</td></tr>
+      <tr><td>OWASP LLM Top 10 (2026)</td><td>Awareness, control mapping, procurement questions</td><td>Categories overlap; not an engagement methodology</td></tr>
+      <tr><td>OWASP Agentic Top 10 + Agent Control Standard (2026)</td><td>Agent, tool and multi-agent threat coverage; expected controls</td><td>Broader scope than the LLM list; use both</td></tr>
+      <tr><td>NIST AI RMF + AI 100-2</td><td>Governance, risk register language, taxonomy completeness</td><td>Abstract; needs translation into tests</td></tr>
+      <tr><td>ISO/IEC 42001</td><td>Management system, audit evidence, supplier assurance</td><td>Certification is not a security guarantee</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m1-failures">1.5 The failure modes that produce incidents</h2>
+
+  <p>Most public AI security incidents are not exotic. They cluster into a small number of patterns, and a red team should be able to say which ones a target is exposed to within the first day.</p>
+
+  <table>
+    <thead><tr><th style="width:22%">Pattern</th><th style="width:40%">Mechanism</th><th>Representative consequence</th></tr></thead>
+    <tbody>
+      <tr><td><b>Direct prompt injection</b></td><td>The user's own message overrides or reframes the system prompt</td><td>Policy bypass, system prompt disclosure, unsafe content</td></tr>
+      <tr><td><b>Indirect prompt injection</b></td><td>Instructions arrive inside content the model is asked to process</td><td>Agent performs attacker actions; data exfiltration; worm-like spread</td></tr>
+      <tr><td><b>Insecure output handling</b></td><td>Model output is passed to a browser, shell, SQL engine or downstream LLM without validation</td><td>XSS, SSRF, SQL injection, remote code execution</td></tr>
+      <tr><td><b>Excessive agency</b></td><td>Agent has tools, scopes or credentials beyond the task</td><td>Unauthorised transactions, data modification, privilege escalation</td></tr>
+      <tr><td><b>Sensitive information disclosure</b></td><td>Secrets in prompts, over-broad retrieval, verbose errors, shared memory</td><td>PII exposure, credential leakage, IP loss</td></tr>
+      <tr><td><b>Poisoning</b></td><td>Adversary influence over training data, fine-tunes, adapters or retrieval corpus</td><td>Backdoored behaviour, biased output, persistent manipulation</td></tr>
+      <tr><td><b>Supply chain compromise</b></td><td>Malicious model, package, container or MCP server</td><td>Code execution at load or install time; silent model substitution</td></tr>
+      <tr><td><b>Unbounded consumption</b></td><td>No quotas, recursive loops, expensive tool chains</td><td>Denial of service, cost amplification, capacity exhaustion</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box defender">
+    <span class="lbl">Defender's view — what "good" looks like</span>
+    <p>A defensible AI system can answer five questions from logs alone: <em>what instructions did the model receive, and where did each come from? What did it decide to do? Which credential executed that action? What data left the boundary? Who approved it?</em> If any of those cannot be answered, the organisation is not ready to run an autonomous agent regardless of how good the model is.</p>
+  </div>
+
+  <h2 id="m1-method">1.6 Measuring success without fooling yourself</h2>
+
+  <p>AI red teaming inherits the rigor of software testing and the statistics of behavioural experiments. Three practices separate a credible engagement from a demo.</p>
+
+  <p><strong>Define the objective before the payload.</strong> "Bypass the filter" is not an objective. "Cause the support agent to issue a refund to an account the requester does not own, without human approval" is. Objectives should be expressed as a change in the target's state or a disclosure of a named data class, and each should have an observable success condition.</p>
+
+  <p><strong>Run trials, not anecdotes.</strong> For each technique, run <em>n</em> attempts (20 is a reasonable default for a stable estimate) with the same model, prompt, temperature and toolset, and record successes. Report ASR as a proportion with a Wilson confidence interval. Vary one factor at a time: phrasing, position in context, language, encoding, length. Keep a control condition — a benign request that should always succeed — to detect a broken harness.</p>
+
+  <p><strong>Account for confounders.</strong> Model updates, A/B tests, caching, retrieval non-determinism and rate limiting all move results. Record model version and endpoint, request IDs, timestamps, sampling parameters, retrieved document IDs and the full prompt as assembled — not the prompt as typed. Without the assembled prompt, a failed reproduction is uninterpretable.</p>
+
+  <div class="box note">
+    <span class="lbl">A minimal evidence record</span>
+    <p><b>Test ID</b> · objective · target component and version · technique and payload hash · assembled prompt (redacted) · retrieved context IDs · tool calls with arguments · raw response · success/failure judgement · timestamp · operator. Ten fields. If your harness does not capture them automatically, build the harness before the engagement, not during it.</p>
+  </div>
+
+  <h2 id="m1-cases">1.7 Lessons from public incidents</h2>
+
+  <p><strong>The airline chatbot.</strong> A carrier's support chatbot gave a customer incorrect information about bereavement fares, and a tribunal held the company responsible for its chatbot's statements. The security lesson is broader than accuracy: an AI agent's output is the organisation's output, and civil liability does not care that the model was "hallucinating".</p>
+
+  <p><strong>The one-dollar car.</strong> A dealership's website assistant, instructed to be helpful and not to be talked out of deals, was persuaded by a user to "agree" to sell a vehicle for one dollar. No system was breached. The failure was a missing action boundary between conversation and commitment — a pure excessive-agency problem.</p>
+
+  <p><strong>Indirect injection in a browser-capable assistant.</strong> Researchers have repeatedly shown that a web page, document or email containing hidden instructions can cause an assistant to exfiltrate conversation context via a rendered image URL or a link. The model did what it was told; the instructions simply came from the wrong principal. This is the canonical enterprise risk because the attacker never needs an account.</p>
+
+  <p><strong>Zero-click copilot exfiltration.</strong> In 2025, researchers demonstrated that a crafted email could cause an enterprise copilot to retrieve and leak content without user interaction, by combining indirect injection with a trusted retrieval path and an outbound channel. The details are vendor-specific; the pattern is general and appears in Module 3.</p>
+
+  <p><strong>Model hub and package compromise.</strong> Malicious models have been published to public hubs with payloads in pickle files, and AI-themed packages have been typosquatted on public registries. Treat model loading as a code-execution boundary until you understand the format, the loader and the provenance — the subject of Module 8.</p>
+
+  <h2 id="m1-lab">1.8 Lab 1 — Build the target you will attack all course</h2>
+
+  <div class="box lab">
+    <span class="lbl">Lab brief &middot; 3 hours</span>
+    <p><strong>Objective.</strong> Stand up the isolated lab stack and produce a one-page system card for it. Every later module assumes this environment exists.</p>
+    <p><strong>Build.</strong> Docker Compose with: (1) an inference server running a small open-weight model — Ollama or vLLM with a 3–8B parameter model; (2) an application with a system prompt, a chat UI and a deliberately naive prompt assembler; (3) a Chroma or Qdrant instance with ten synthetic documents; (4) a toy agent with three tools — <code>read_file</code>, <code>http_get</code> and <code>write_file</code> — scoped to a sandbox directory; (5) a logging collector that stores the fully assembled prompt, response and tool calls as JSON lines.</p>
+    <p><strong>Tasks.</strong> Draw the data-flow diagram. Label every trust boundary. For each component, write one sentence describing what an attacker would gain by controlling it. Then attempt three benign interactions and confirm the logger captured the assembled prompt, the retrieved chunk IDs and the tool arguments.</p>
+    <p><strong>Deliverable.</strong> System card: components and versions, data classes, identities, network paths, logging coverage, known gaps. This becomes the scope baseline for the capstone.</p>
+    <p><strong>Safety.</strong> No host network, no cloud credentials, no external model API keys. The agent's <code>http_get</code> must be restricted to a local mock service; the sandbox directory must contain only synthetic files.</p>
+  </div>
+
+  <h2 id="m1-takeaways">1.9 Key takeaways</h2>
+  <ul>
+    <li>AI expands the attack surface along three axes: <em>input</em> (natural language from many principals), <em>behaviour</em> (learned, probabilistic) and <em>authority</em> (tools and credentials).</li>
+    <li>The composition matters more than the model. A safe model behind an over-privileged tool is an unsafe system.</li>
+    <li>Indirect prompt injection is the defining enterprise risk because it requires no account and crosses trust boundaries silently.</li>
+    <li>Report attack success rates over trial series, with the assembled prompt and tool calls as evidence.</li>
+    <li>Every offensive technique in this course has a telemetry signature. If you cannot describe it, you have not finished the test.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Why is "the model refused in my test" not evidence that a control works?</li>
+      <li>Name three components of an AI system that have no counterpart in a traditional web application, and state the adversary objective for each.</li>
+      <li>A support agent can read email and call a refund API. Which two properties from §1.1 combine to create the highest-severity risk, and why?</li>
+      <li>What is the difference between an evasion attack, a poisoning attack and a privacy attack under the NIST AI 100-2 taxonomy? Give one example of each against a RAG system.</li>
+      <li>Design the control condition for a prompt-injection trial series and explain what a failure of that control would tell you.</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Module 02 — Reconnaissance for AI Targets</div>
+</section>

@@ -1,0 +1,714 @@
+/* ============================================================
+   Red Teaming AI Systems — course handbook stylesheet
+   ============================================================ */
+
+@page {
+  size: A4;
+  margin: 21mm 19mm 19mm 19mm;
+
+  @top-left {
+    content: string(module-title);
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 7.4pt;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #7b8a9a;
+    vertical-align: bottom;
+    padding-bottom: 3mm;
+  }
+  @top-right {
+    content: "Practitioner Handbook";
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 7.4pt;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #b0bac4;
+    vertical-align: bottom;
+    padding-bottom: 3mm;
+  }
+  @bottom-center {
+    content: counter(page);
+    font-family: "Liberation Sans", sans-serif;
+    font-size: 8.4pt;
+    color: #6b7a89;
+    vertical-align: top;
+    padding-top: 4mm;
+  }
+}
+
+@page cover {
+  margin: 0;
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-center { content: none; }
+}
+
+@page front {
+  @top-left { content: none; }
+  @top-right { content: none; }
+}
+
+@page chapter {
+  @top-left {
+    content: string(module-title);
+  }
+}
+
+html {
+  font-family: "Liberation Serif", "DejaVu Serif", serif;
+  font-size: 10.3pt;
+  line-height: 1.52;
+  color: #1a2430;
+  hyphens: auto;
+}
+
+body { margin: 0; }
+
+p {
+  margin: 0 0 2.6mm 0;
+  text-align: justify;
+  orphans: 2;
+  widows: 2;
+}
+
+strong { color: #0f1a26; }
+
+a { color: #0f5f75; text-decoration: none; }
+
+/* ---------- cover ---------- */
+
+.cover {
+  page: cover;
+  height: 297mm;
+  width: 210mm;
+  background: #0c1724;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  page-break-after: always;
+}
+
+.cover .grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+}
+
+.cover .inner {
+  position: absolute;
+  left: 20mm;
+  right: 20mm;
+  top: 24mm;
+}
+
+.cover .kicker {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 8pt;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: #7dd3c7;
+  margin-bottom: 10mm;
+}
+
+.cover h1 {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 47pt;
+  line-height: 0.98;
+  letter-spacing: -0.028em;
+  font-weight: 700;
+  margin: 0 0 7mm 0;
+  color: #ffffff;
+  bookmark-level: none;
+}
+
+.cover h1 .accent { color: #f59e0b; }
+
+.cover .sub {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 13.4pt;
+  line-height: 1.42;
+  color: #b9c8d8;
+  font-weight: 400;
+  max-width: 132mm;
+  margin: 0 0 12mm 0;
+}
+
+.cover .rule {
+  width: 38mm;
+  height: 1.6mm;
+  background: #f59e0b;
+  margin-bottom: 9mm;
+}
+
+.cover .meta {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 8.6pt;
+  letter-spacing: 0.05em;
+  color: #8ba0b4;
+  line-height: 1.9;
+}
+
+.cover .meta b { color: #e8eef4; font-weight: 600; }
+
+.cover .bottom {
+  position: absolute;
+  left: 20mm;
+  right: 20mm;
+  bottom: 18mm;
+  border-top: 0.4pt solid #2b3d52;
+  padding-top: 5mm;
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 8pt;
+  color: #8095a9;
+  letter-spacing: 0.04em;
+}
+
+.cover .bottom span { float: right; }
+
+/* ---------- front matter ---------- */
+
+.front {
+  page: front;
+  page-break-after: always;
+}
+
+.front .chapter-label {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.8pt;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #b45309;
+  margin-bottom: 3mm;
+}
+
+.front h1 {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 25pt;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 7mm 0;
+  color: #0c1724;
+  bookmark-level: 1;
+}
+
+/* ---------- chapter opener ---------- */
+
+.chapter {
+  page-break-before: always;
+}
+
+.chapter-head {
+  border-top: 2.2pt solid #0c1724;
+  padding-top: 4mm;
+  margin-bottom: 9mm;
+  position: relative;
+}
+
+.module-no {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #b45309;
+  display: block;
+  margin-bottom: 2.5mm;
+}
+
+h1 {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 28pt;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  color: #0c1724;
+  margin: 0 0 4mm 0;
+  string-set: module-title content();
+  bookmark-level: 1;
+}
+
+#about { bookmark-label: "About this handbook"; }
+#ethics { bookmark-label: "Authorisation, ethics and safety"; }
+
+.dek {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 11pt;
+  line-height: 1.45;
+  color: #5a6b7c;
+  margin: 0;
+  max-width: 150mm;
+}
+
+h2 {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 14pt;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+  color: #0c1724;
+  margin: 8.5mm 0 2.6mm 0;
+  padding-bottom: 1.6mm;
+  border-bottom: 0.5pt solid #d5dde4;
+  page-break-after: avoid;
+  bookmark-level: 2;
+}
+
+h3 {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 10.2pt;
+  font-weight: 700;
+  color: #123448;
+  margin: 5.4mm 0 1.4mm 0;
+  page-break-after: avoid;
+  bookmark-level: 3;
+}
+
+h4 {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 9.4pt;
+  font-weight: 700;
+  color: #33465a;
+  margin: 4mm 0 1mm 0;
+  page-break-after: avoid;
+}
+
+ul, ol { margin: 0 0 2.8mm 0; padding-left: 5.2mm; }
+li { margin-bottom: 1.1mm; text-align: justify; }
+li::marker { color: #b45309; }
+
+/* ---------- objectives / boxes ---------- */
+
+.objectives {
+  background: #f4f1ea;
+  border-left: 3pt solid #b45309;
+  padding: 4.5mm 5mm 3mm 5mm;
+  margin: 0 0 7mm 0;
+  page-break-inside: avoid;
+}
+
+.objectives .lbl {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.3pt;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8a4a0c;
+  margin-bottom: 2.2mm;
+}
+
+.objectives ul { margin: 0; padding-left: 4.6mm; }
+.objectives li {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 8.9pt;
+  line-height: 1.4;
+  margin-bottom: 1.2mm;
+  color: #2c3a48;
+}
+.objectives li::marker { color: #b45309; }
+
+.box {
+  padding: 3.6mm 4.4mm;
+  margin: 4.5mm 0 5mm 0;
+  page-break-inside: avoid;
+  font-size: 9.3pt;
+  line-height: 1.45;
+}
+
+.box p:last-child, .box ul:last-child { margin-bottom: 0; }
+
+.box .lbl {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.2pt;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 1.8mm;
+}
+
+.box.note { background: #eef4f6; border-left: 3pt solid #0f766e; }
+.box.note .lbl { color: #0f766e; }
+
+.box.warn { background: #fdf3e7; border-left: 3pt solid #c2410c; }
+.box.warn .lbl { color: #a33a0c; }
+
+.box.defender { background: #eef6ef; border-left: 3pt solid #3f7d4a; }
+.box.defender .lbl { color: #2f6639; }
+
+.box.lab { background: #0f1c2b; color: #dce6ef; border-left: 3pt solid #f59e0b; }
+.box.lab .lbl { color: #f5b74a; }
+.box.lab strong { color: #ffffff; }
+.box.lab code { background: #22334a; color: #ffd9a3; border: none; }
+.box.lab a { color: #7dd3c7; }
+
+.box.verdict { background: #f2f4f7; border-left: 3pt solid #64748b; }
+.box.verdict .lbl { color: #475569; }
+
+/* ---------- dual-track: plain-language brief + deep dive ---------- */
+
+.plainbrief {
+  background: #eef7f5;
+  border: 0.5pt solid #cfe3df;
+  border-left: 3.6pt solid #0f766e;
+  padding: 4.6mm 5.2mm 2.4mm 5.2mm;
+  margin: 0 0 5mm 0;
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 9.15pt;
+  line-height: 1.5;
+  color: #1d3336;
+}
+
+.plainbrief .lbl {
+  font-size: 7.2pt;
+  font-weight: 700;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: #0f766e;
+  margin-bottom: 2.2mm;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.plainbrief p {
+  text-align: left;
+  margin: 0 0 2.2mm 0;
+  orphans: 2;
+  widows: 2;
+}
+
+.plainbrief ul { margin: 0 0 2.4mm 0; padding-left: 4.8mm; }
+.plainbrief li { text-align: left; margin-bottom: 1.1mm; }
+.plainbrief li::marker { color: #0f766e; }
+
+.plainbrief .onething {
+  background: #ffffff;
+  border-left: 2.4pt solid #b45309;
+  padding: 2.6mm 3.4mm;
+  margin: 2.8mm 0 1mm 0;
+  font-size: 8.8pt;
+  line-height: 1.45;
+  color: #3c2a18;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.plainbrief .onething b {
+  color: #b45309;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-size: 7.2pt;
+}
+
+.track-label {
+  display: block;
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.6pt;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #0f5f75;
+  margin: 6mm 0 4.2mm 0;
+  padding: 2mm 0 1.5mm 0;
+  border-top: 1.1pt solid #0f766e;
+  border-bottom: 0.4pt solid #d5dde4;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.track-label span { color: #8b98a6; font-weight: 400; letter-spacing: 0.12em; }
+
+.deepdive {
+  background: #f7f9fb;
+  border: 0.5pt solid #d5dde4;
+  border-left: 3pt solid #33465a;
+  padding: 4.4mm 5.2mm 1.6mm 5.2mm;
+  margin: 6mm 0 5mm 0;
+  page-break-inside: auto;
+  font-size: 9.35pt;
+  line-height: 1.47;
+}
+
+.deepdive .lbl {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.2pt;
+  font-weight: 700;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: #33465a;
+  display: block;
+  margin-bottom: 2.2mm;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.deepdive h3 {
+  font-size: 9.7pt;
+  margin: 4.2mm 0 1.2mm 0;
+  color: #123448;
+  bookmark-level: none;
+}
+.deepdive p { text-align: justify; margin-bottom: 2.2mm; }
+.deepdive ul, .deepdive ol { margin-bottom: 2.4mm; }
+.deepdive li { text-align: left; }
+
+.formula {
+  font-family: "DejaVu Sans", sans-serif;
+  background: #eef2f6;
+  border-left: 2.4pt solid #64748b;
+  padding: 2.6mm 3.6mm;
+  margin: 2.8mm 0 3.2mm 0;
+  font-size: 8.6pt;
+  line-height: 1.5;
+  color: #24313d;
+  page-break-inside: avoid;
+}
+.formula .eq {
+  display: block;
+  text-align: center;
+  font-size: 9.3pt;
+  margin: 1.2mm 0 1.4mm 0;
+  color: #0c1724;
+}
+.formula .where {
+  display: block;
+  font-size: 8.05pt;
+  line-height: 1.42;
+  color: #4a5a6b;
+}
+.formula .where b { color: #24313d; }
+
+.deepdive table { font-size: 7.75pt; margin-bottom: 3mm; }
+.deepdive table td, .deepdive table th { padding: 1.4mm 1.9mm; }
+.deepdive pre { font-size: 7.7pt; margin: 2.4mm 0 3mm 0; }
+
+/* ---------- tables ---------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 3mm 0 5mm 0;
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 8.05pt;
+  line-height: 1.34;
+  page-break-inside: auto;
+}
+
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+
+th {
+  hyphens: manual;
+  background: #0f2233;
+  color: #ffffff;
+  font-weight: 700;
+  text-align: left;
+  padding: 2.1mm 2.4mm;
+  font-size: 7.6pt;
+  letter-spacing: 0.03em;
+  vertical-align: bottom;
+}
+
+td {
+  padding: 1.9mm 2.4mm;
+  border-bottom: 0.4pt solid #dbe2e8;
+  vertical-align: top;
+  color: #23313f;
+}
+
+tbody tr:nth-child(even) td { background: #f6f8fa; }
+
+td.num, th.num { text-align: center; white-space: nowrap; }
+
+table.compact { font-size: 7.7pt; }
+table.compact td, table.compact th { padding: 1.5mm 2mm; }
+
+caption, .tcap {
+  caption-side: bottom;
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.6pt;
+  color: #6b7a89;
+  text-align: left;
+  padding-top: 1.6mm;
+}
+
+/* ---------- code ---------- */
+
+code {
+  hyphens: manual;
+  font-family: "DejaVu Sans Mono", monospace;
+  font-size: 8.35pt;
+  background: #eef1f4;
+  padding: 0.3mm 1mm;
+  border-radius: 1mm;
+  color: #8a3410;
+}
+
+pre {
+  hyphens: manual;
+  background: #f5f7f9;
+  border-left: 2.6pt solid #b45309;
+  padding: 3.4mm 4mm;
+  margin: 3.5mm 0 4.5mm 0;
+  font-family: "DejaVu Sans Mono", monospace;
+  font-size: 8.05pt;
+  line-height: 1.42;
+  color: #22303d;
+  white-space: pre-wrap;
+  page-break-inside: avoid;
+  overflow-wrap: break-word;
+}
+
+pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+.codeline-lbl {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.2pt;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7b8a9a;
+  margin: 4.5mm 0 1.6mm 0;
+}
+
+/* ---------- figures ---------- */
+
+figure {
+  margin: 5mm 0 6mm 0;
+  page-break-inside: avoid;
+  text-align: center;
+}
+
+figure svg { max-width: 100%; }
+
+figcaption {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.7pt;
+  color: #667686;
+  text-align: left;
+  margin-top: 2mm;
+  line-height: 1.4;
+}
+
+figcaption b { color: #33465a; }
+
+/* ---------- TOC ---------- */
+
+.toc { font-family: "Liberation Sans", sans-serif; }
+
+.toc .part {
+  font-size: 7.6pt;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #b45309;
+  margin: 7mm 0 2mm 0;
+}
+
+.toc a {
+  display: block;
+  color: #1a2430;
+  text-decoration: none;
+  font-size: 9.3pt;
+  line-height: 1.5;
+  margin-bottom: 0.7mm;
+}
+
+.toc a::after {
+  content: leader('.') target-counter(attr(href), page);
+  color: #8b98a6;
+  font-size: 8.6pt;
+}
+
+.toc a.lvl1 { font-weight: 700; margin-top: 2.4mm; font-size: 9.6pt; }
+.toc a.lvl2 { padding-left: 5mm; font-size: 8.7pt; color: #3d4d5e; }
+.toc a.lvl2::after { font-size: 8.2pt; }
+
+/* ---------- misc ---------- */
+
+.lede {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 10.4pt;
+  line-height: 1.5;
+  color: #34465a;
+  margin-bottom: 4mm;
+}
+
+.small { font-size: 8.6pt; line-height: 1.45; }
+.muted { color: #6b7a89; }
+
+.kv {
+  display: table;
+  width: 100%;
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 8.7pt;
+  margin: 2mm 0 5mm 0;
+}
+.kv .row { display: table-row; }
+.kv .k, .kv .v { display: table-cell; padding: 1.5mm 0; border-bottom: 0.4pt solid #e4e9ee; }
+.kv .k { width: 34mm; color: #6b7a89; }
+.kv .v { color: #1a2430; }
+
+.two-col { column-count: 2; column-gap: 8mm; }
+.two-col p { margin-bottom: 2mm; }
+
+.checklist { list-style: none; padding-left: 0; }
+.checklist li { padding-left: 5.5mm; text-indent: -5.5mm; }
+.checklist li::before {
+  content: "\2610";
+  color: #b45309;
+  font-family: "DejaVu Sans";
+  margin-right: 2mm;
+  text-indent: 0;
+}
+
+.pagebreak { page-break-before: always; }
+.avoid { page-break-inside: avoid; }
+
+hr.sep {
+  border: none;
+  border-top: 0.5pt solid #d5dde4;
+  margin: 6mm 0;
+}
+
+/* quiz */
+
+.quiz {
+  background: #f7f8fa;
+  border: 0.5pt solid #dde3e9;
+  padding: 4.4mm 5mm 2mm 5mm;
+  margin: 6mm 0 4mm 0;
+  page-break-inside: avoid;
+}
+.quiz .lbl {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.3pt;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #0f5f75;
+  margin-bottom: 2.4mm;
+}
+.quiz ol { margin: 0; padding-left: 5mm; }
+.quiz li {
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 8.7pt;
+  line-height: 1.45;
+  margin-bottom: 1.6mm;
+}
+
+/* identifiers that must not hyphenate across lines */
+
+.nw {
+  white-space: nowrap;
+  hyphens: manual;
+}
+
+/* module footer strip */
+
+.endmark {
+  margin-top: 7mm;
+  border-top: 0.5pt solid #d5dde4;
+  padding-top: 2.5mm;
+  font-family: "Liberation Sans", sans-serif;
+  font-size: 7.5pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #93a0ad;
+}

@@ -1,0 +1,280 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Module 05</span>
+    <h1 id="m5">Exploiting RAG Pipelines</h1>
+    <p class="dek">Controlling what the model knows at the moment it answers: poisoning sources, steering retrieval and abusing the permissions of the index.</p>
+  </div>
+
+  <div class="objectives">
+    <div class="lbl">Learning objectives</div>
+    <ul>
+      <li>Decompose a retrieval-augmented generation pipeline and identify the attack surface at each stage.</li>
+      <li>Poison a corpus so that a target query retrieves attacker-controlled content.</li>
+      <li>Manipulate ranking through keyword stuffing, chunk placement and reranker behaviour.</li>
+      <li>Exploit access-control failures caused by service-account retrieval and stale permissions.</li>
+      <li>Design ACL-aware retrieval, ingestion controls and output validation.</li>
+      <li>Detect poisoning and retrieval abuse from index, query and citation telemetry.</li>
+    </ul>
+  </div>
+
+  <p class="lede">Retrieval-augmented generation is the most common way enterprises connect a model to their own data. It is also the most common place where confidentiality, integrity and instruction-following failures meet. The model does not merely read documents; it treats them as authoritative context, and in most implementations it cannot tell a policy written by the security team from a paragraph planted by an attacker.</p>
+
+  <p>RAG is often described as a way to "ground" a model and reduce hallucination. Security-wise, it is better understood as <strong>a dynamic, permission-sensitive input channel</strong>. Every retrieved chunk is attacker-reachable if the corpus is attacker-reachable, and every retrieval decision is a policy decision that the application must make explicitly.</p>
+
+  <h2 id="m5-pipeline">5.1 Pipeline anatomy</h2>
+
+  <figure>
+    <svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs><marker id="a5" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7b8a9a"/></marker></defs>
+      <g font-size="7.8">
+        <rect x="10" y="70" width="88" height="56" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="20" y="88" font-weight="bold" fill="#33465a">Sources</text>
+        <text x="20" y="101" font-size="7" fill="#5b6b7c">wiki · drive · email</text>
+        <text x="20" y="112" font-size="7" fill="#5b6b7c">web · tickets · PDFs</text>
+
+        <rect x="118" y="70" width="84" height="56" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="128" y="88" font-weight="bold" fill="#33465a">Parse</text>
+        <text x="128" y="101" font-size="7" fill="#5b6b7c">text, tables, OCR</text>
+        <text x="128" y="112" font-size="7" fill="#5b6b7c">metadata, ACLs</text>
+
+        <rect x="222" y="70" width="84" height="56" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="232" y="88" font-weight="bold" fill="#33465a">Chunk &amp; embed</text>
+        <text x="232" y="101" font-size="7" fill="#5b6b7c">split, overlap</text>
+        <text x="232" y="112" font-size="7" fill="#5b6b7c">vectors, metadata</text>
+
+        <rect x="326" y="70" width="84" height="56" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="336" y="88" font-weight="bold" fill="#0f4f4a">Index</text>
+        <text x="336" y="101" font-size="7" fill="#3d5a5a">HNSW / IVF</text>
+        <text x="336" y="112" font-size="7" fill="#3d5a5a">hybrid, filters</text>
+
+        <rect x="430" y="70" width="84" height="56" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="440" y="88" font-weight="bold" fill="#7a3a08">Retrieve</text>
+        <text x="440" y="101" font-size="7" fill="#7a5a3a">top-k, rewrite</text>
+        <text x="440" y="112" font-size="7" fill="#7a5a3a">rerank, filter</text>
+
+        <rect x="534" y="70" width="76" height="56" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="544" y="88" font-weight="bold" fill="#7a3a08">Assemble</text>
+        <text x="544" y="101" font-size="7" fill="#7a5a3a">delimit</text>
+        <text x="544" y="112" font-size="7" fill="#7a5a3a">cite</text>
+
+        <rect x="630" y="70" width="60" height="56" rx="3" fill="#0f2233" stroke="#0f2233"/>
+        <text x="639" y="88" font-weight="bold" fill="#ffffff">Generate</text>
+        <text x="639" y="101" font-size="7" fill="#a9bccd">answer +</text>
+        <text x="639" y="112" font-size="7" fill="#a9bccd">citations</text>
+
+        <g stroke="#7b8a9a" stroke-width="0.8">
+          <path d="M98 98 H115" marker-end="url(#a5)"/>
+          <path d="M202 98 H219" marker-end="url(#a5)"/>
+          <path d="M306 98 H323" marker-end="url(#a5)"/>
+          <path d="M410 98 H427" marker-end="url(#a5)"/>
+          <path d="M514 98 H531" marker-end="url(#a5)"/>
+          <path d="M610 98 H627" marker-end="url(#a5)"/>
+        </g>
+
+        <g fill="#b45309" font-size="8" font-weight="bold">
+          <circle cx="54" cy="62" r="8"/><text x="51" y="65" fill="#fff">1</text>
+          <circle cx="160" cy="62" r="8"/><text x="157" y="65" fill="#fff">2</text>
+          <circle cx="264" cy="62" r="8"/><text x="261" y="65" fill="#fff">3</text>
+          <circle cx="472" cy="62" r="8"/><text x="469" y="65" fill="#fff">4</text>
+          <circle cx="572" cy="62" r="8"/><text x="569" y="65" fill="#fff">5</text>
+        </g>
+        <text x="10" y="150" font-size="7.2" fill="#5b6b7c">
+          <tspan x="10" dy="0" font-weight="bold" fill="#33465a">Attack surface</tspan>
+          <tspan x="10" dy="13">1  source injection, connector over-permission</tspan>
+          <tspan x="10" dy="11">2  parser confusion, hidden text, metadata</tspan>
+          <tspan x="10" dy="11">3  chunk boundary leakage, embedding manipulation</tspan>
+          <tspan x="10" dy="11">4  ranking manipulation, filter injection, top-k starvation</tspan>
+          <tspan x="10" dy="11">5  context flooding, citation spoofing, instruction smuggling</tspan>
+        </text>
+
+        <rect x="370" y="140" width="320" height="86" rx="3" fill="#f7f8fa" stroke="#dde3e9"/>
+        <text x="382" y="156" font-size="7.2" font-weight="bold" fill="#33465a">Where it fails</text>
+        <text x="382" y="170" font-size="7.2" fill="#5b6b7c">Ingestion has no trust review; ACLs are copied once and never updated;</text>
+        <text x="382" y="182" font-size="7.2" fill="#5b6b7c">retrieval runs as a service account; metadata filters are built by string</text>
+        <text x="382" y="194" font-size="7.2" fill="#5b6b7c">concatenation; the prompt treats retrieved text as instructions; citations</text>
+        <text x="382" y="206" font-size="7.2" fill="#5b6b7c">are generated by the model rather than derived from metadata.</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 5.1 — The RAG pipeline and its attack surface.</b> Integrity attacks enter at ingestion, confidentiality attacks exploit retrieval and assembly, and availability attacks target ranking and context budget.</figcaption>
+  </figure>
+
+  <table>
+    <thead><tr><th style="width:16%">Stage</th><th style="width:42%">What can go wrong</th><th>Attacker objective</th></tr></thead>
+    <tbody>
+      <tr><td>Source selection</td><td>Connectors ingest email, chat, tickets and public web without review</td><td>Place content the agent will later retrieve</td></tr>
+      <tr><td>Parsing</td><td>Hidden text, comments, alt text, PDF annotations and metadata survive</td><td>Smuggle instructions past human review</td></tr>
+      <tr><td>Chunking</td><td>Overlap splits secrets across chunks; boundaries separate context from caveats</td><td>Expose fragments; strip warnings; change meaning</td></tr>
+      <tr><td>Embedding</td><td>Model choice, normalisation and dimensionality are untested for adversarial inputs</td><td>Force similarity to a target query</td></tr>
+      <tr><td>Indexing</td><td>Tenant and ACL fields are optional or unvalidated</td><td>Cross-tenant retrieval</td></tr>
+      <tr><td>Query rewriting</td><td>An LLM rewrites the query and can be steered</td><td>Redirect retrieval to attacker content</td></tr>
+      <tr><td>Ranking</td><td>Keyword stuffing, metadata and chunk placement shift the score; BM25 saturation and length normalisation limit the effect but do not remove it</td><td>Displace legitimate results</td></tr>
+      <tr><td>Filtering</td><td>ACLs applied after retrieval or not at all</td><td>Read documents the user cannot open</td></tr>
+      <tr><td>Assembly</td><td>Retrieved text concatenated with the system prompt</td><td>Instruction injection</td></tr>
+      <tr><td>Citation</td><td>Citations generated, not derived</td><td>Launder a claim through a trusted source</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m5-poison">5.2 Corpus poisoning</h2>
+
+  <p>Poisoning is an integrity attack on the knowledge base. It succeeds when an attacker can cause content to be indexed and later retrieved for a query that matters. The attacker does not need write access to the vector database; write access to any ingested source is enough.</p>
+
+  <h3>Delivery paths</h3>
+  <ul>
+    <li><strong>Public web.</strong> An agent that browses or a pipeline that ingests public pages can be influenced by publishing a page. This is the classic indirect injection path and requires no relationship with the target.</li>
+    <li><strong>Shared collaboration surfaces.</strong> Wikis, drives, tickets and chat channels are often writable by contractors, partners or compromised accounts. A single comment can enter the corpus.</li>
+    <li><strong>Inbound email and attachments.</strong> Assistants that ingest mail for summarisation or task extraction create a direct channel from any external sender.</li>
+    <li><strong>Vendor and partner content.</strong> Product documentation, supplier catalogues and regulatory updates are trusted by convention, not by verification.</li>
+    <li><strong>Direct index access.</strong> An exposed vector database or ingestion API allows an attacker to insert chunks with arbitrary metadata, bypassing every upstream control.</li>
+  </ul>
+
+  <h3>Making the poison retrieve</h3>
+  <p>Content that is never retrieved has no effect. The attacker must optimise for the retrieval function, which is usually a hybrid of dense similarity and keyword matching. Practical techniques:</p>
+  <ul>
+    <li><strong>Query anticipation.</strong> Write the poison to contain the exact phrases a legitimate user or the query rewriter will produce: product names, error codes, policy titles, dates.</li>
+    <li><strong>Keyword stuffing.</strong> Repeat target terms in natural-looking prose, headings and metadata. Sparse retrievers such as BM25 do respond to term frequency, but with saturation: each additional occurrence adds less than the previous one, so repetition does not increase the score without bound. BM25 also applies document-length normalisation, which penalises long chunks that pad the text. Hybrid retrieval fuses a lexical score with a dense score; it does not inherently reward stuffing more than a purely lexical system, and the fusion weight determines how much a lexical boost matters. Measure the target's actual scorer rather than assuming that more repetitions always rank higher.</li>
+    <li><strong>Structural mimicry.</strong> Match the format of authoritative documents — policy headers, version numbers, approval blocks — so both the ranker and the human reviewer treat it as legitimate.</li>
+    <li><strong>Chunk placement.</strong> Put the operative sentence early in the document and again in a heading, because chunking may separate it from the context that would reveal its origin.</li>
+    <li><strong>Metadata manipulation.</strong> Set <code>source</code>, <code>author</code>, <code>classification</code> or <code>updated_at</code> to plausible values. If filters trust metadata, this is also an access-control attack.</li>
+    <li><strong>Front-running.</strong> Publish before the legitimate document exists — a "policy update" for a policy that is about to be revised — so the poison is the first authoritative-looking source.</li>
+  </ul>
+
+  <h3>Persistence and propagation</h3>
+  <p>Poisoned content persists until the source is removed and the index is rebuilt. If the pipeline summarises, re-chunks or re-embeds content, the poison may be paraphrased into new documents and outlive the original. If the agent writes summaries back into the wiki, it can propagate the payload to surfaces that other agents read. This is the RAG equivalent of a worm, and it is why cleanup must cover derived artefacts, caches and backups — not just the source document.</p>
+
+  <div class="box warn">
+    <span class="lbl">Do not poison shared production indexes</span>
+    <p>Even a "reversible" write can be replicated to a read replica, captured in a snapshot, summarised into another document or served from a cache. Poisoning tests belong in a dedicated index or a clearly separated tenant. If the engagement requires testing the production pipeline, use a canary document that contains no instruction and observe whether it is retrieved; then request written approval before any content that could influence output.</p>
+  </div>
+
+  <h2 id="m5-retrieval">5.3 Manipulating retrieval</h2>
+
+  <p>Poisoning changes the corpus. Retrieval manipulation changes the <em>decision</em> about which chunks to use, often without adding new content.</p>
+
+  <h3>Query rewriting</h3>
+  <p>Many pipelines ask an LLM to rewrite or expand the user's query before searching. The rewriter is itself an LLM reading untrusted input, so it can be steered: "expand this query with the terms in the following document" or "search for the policy titled X". A hijacked rewrite can direct retrieval to an attacker-controlled region of the corpus, or strip a filter term that would have constrained the search.</p>
+
+  <h3>Ranking and reranking</h3>
+  <p>Dense retrieval is not robust to adversarial passages. A chunk that is semantically close to many queries — because it is generic, repetitive or deliberately verbose — can occupy top-k slots and crowd out the correct answer. Cross-encoder rerankers are more precise but can be fooled by content that looks like a direct answer. Test both stages separately: does the poison appear in the candidate set, and does it survive reranking?</p>
+
+  <h3>Context flooding</h3>
+  <p>If the pipeline stuffs many chunks into the prompt, an attacker can supply a large volume of plausible but irrelevant text. The model then has less attention for the real context, and the attacker's instruction may be the only coherent directive in a sea of noise. This is a denial-of-quality attack: the system still answers, but the answer is wrong and the citation looks legitimate.</p>
+
+  <h3>Citation spoofing</h3>
+  <p>When citations are generated by the model rather than derived from chunk metadata, the model can attribute an injected claim to a trusted document. The user sees "according to the Information Security Policy" and trusts the answer. The defence is structural: citations must be rendered from the retrieved chunk's identifier and verified against the source, not written by the model.</p>
+
+  <table>
+    <thead><tr><th style="width:24%">Technique</th><th style="width:36%">Mechanism</th><th>Observable</th></tr></thead>
+    <tbody>
+      <tr><td>Corpus poisoning</td><td>Add content that matches future queries</td><td>New document IDs in retrieval for a stable query set</td></tr>
+      <tr><td>Keyword stuffing</td><td>Raise sparse-retrieval scores</td><td>High term frequency in a chunk that is semantically weak</td></tr>
+      <tr><td>Adversarial passage</td><td>Exploit embedding-space proximity</td><td>Same chunk retrieved across unrelated queries</td></tr>
+      <tr><td>Query rewrite hijack</td><td>Steer the rewritten query</td><td>Rewrite differs materially from the user's intent</td></tr>
+      <tr><td>Reranker manipulation</td><td>Look like a direct answer</td><td>Low-similarity chunk jumps to rank 1</td></tr>
+      <tr><td>Context flooding</td><td>Consume the context budget</td><td>Sharp rise in retrieved tokens with no relevance gain</td></tr>
+      <tr><td>Citation spoofing</td><td>Attribute a claim to a trusted source</td><td>Citation ID does not contain the cited sentence</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m5-acl">5.4 Access control failures</h2>
+
+  <p>The most common serious RAG finding is not poisoning. It is that the retrieval layer runs with more authority than the user. The assistant searches an index built by a service account, so it can see every document the service account can see, and the application never re-applies the user's permissions. The model then answers questions the user was never allowed to ask.</p>
+
+  <h3>Patterns to test</h3>
+  <ul>
+    <li><strong>Post-filtering.</strong> The top-k chunks are retrieved globally and then filtered by ACL. If the filter is applied after retrieval, the model may already have seen restricted content, and the filter may be incomplete. Pre-filtering by the user's identity is the correct design.</li>
+    <li><strong>Missing tenant predicate.</strong> Multi-tenant systems that forget a <code>tenant_id</code> filter expose other customers' documents. Test with two accounts in different tenants and a query whose answer exists only in the other tenant.</li>
+    <li><strong>Stale permissions.</strong> ACLs are copied at ingestion and never synchronised. A user removed from a project can still retrieve its documents, or a newly granted user cannot — both are findings, one is a confidentiality issue.</li>
+    <li><strong>Deleted but indexed.</strong> Source deletion does not always propagate to the index. "Shadow documents" remain retrievable long after the source is gone.</li>
+    <li><strong>Filter injection.</strong> If metadata filters are built by string concatenation, a crafted value can widen the filter. This is injection, just with a different syntax.</li>
+    <li><strong>Cache collisions.</strong> A response cache keyed only on the query text can serve one user's answer to another. Include tenant, user and permission context in the key.</li>
+    <li><strong>Embedding-level leakage.</strong> Even without returning the document, similarity scores can confirm the existence of a restricted record. Module 6 covers this.</li>
+  </ul>
+
+  <div class="codeline-lbl">The shape of the bug — retrieval authorised as the service, not the user</div>
+<pre>results = index.search(query_vector, top_k=8)          # service account sees everything
+results = [r for r in results if user_can_read(r.doc_id)]  # filter applied after the fact
+prompt = build_prompt(system, results, question)         # restricted text already in context</pre>
+
+  <p>Even when the final answer withholds restricted text, the model has processed it. A follow-up question, a summarisation request or an injected instruction can surface it. Access control must be applied <em>before</em> the model sees the content.</p>
+
+  <h2 id="m5-exfil">5.5 Exfiltration through retrieval</h2>
+
+  <p>RAG gives an attacker a read primitive and a write primitive. Exfiltration combines them: retrieve sensitive content, then emit it through a channel the attacker can observe. Channels include the answer itself, a citation URL, a markdown image, a tool call, or a follow-up document written back to a shared surface. The lethal trifecta from Module 3 applies directly: private corpus, untrusted query or document, outbound channel.</p>
+
+  <p>Volume is usually small per request, but RAG makes targeted extraction efficient: the attacker can ask for a specific clause, customer record or credential by describing it, and the retriever will find the chunk. Iterative extraction over many sessions is realistic and hard to distinguish from legitimate research.</p>
+
+  <h2 id="m5-controls">5.6 Controls</h2>
+
+  <table>
+    <thead><tr><th style="width:24%">Control</th><th style="width:46%">Implementation</th><th>Residual risk</th></tr></thead>
+    <tbody>
+      <tr><td><b>Ingestion allowlist</b></td><td>Only approved sources, owners and content types; review before first index</td><td>Trusted sources can still be compromised</td></tr>
+      <tr><td><b>Content sanitisation</b></td><td>Strip hidden text, comments, annotations, alt text and active content; normalise Unicode</td><td>Semantic payloads survive</td></tr>
+      <tr><td><b>Provenance in the prompt</b></td><td>Delimit retrieved content, label source and trust level, instruct the model to treat it as data</td><td>Model compliance is probabilistic</td></tr>
+      <tr><td><b>ACL-aware retrieval</b></td><td>Pre-filter by the requesting user's identity; never use a shared service account for search</td><td>Requires identity propagation end to end</td></tr>
+      <tr><td><b>Tenant isolation</b></td><td>Separate indexes or enforced tenant predicates; test with cross-tenant queries</td><td>Filter bugs; shared caches</td></tr>
+      <tr><td><b>ACL synchronisation</b></td><td>Incremental sync from the source system; delete and permission changes propagate</td><td>Latency window; source API limits</td></tr>
+      <tr><td><b>Citation from metadata</b></td><td>Render the source and chunk ID from the retrieval result; verify the quoted text exists</td><td>Partial quotes can still mislead</td></tr>
+      <tr><td><b>Canary documents</b></td><td>Plant unique, sensitive-looking documents and alert if they appear in an answer or outbound request</td><td>Only detects access to the canary</td></tr>
+      <tr><td><b>Query monitoring</b></td><td>Alert on extraction patterns: enumerations, "list all", repeated narrow queries, cross-tenant probes</td><td>Legitimate bulk research looks similar</td></tr>
+      <tr><td><b>Output validation</b></td><td>Check that the answer is supported by cited chunks; block unsupported claims</td><td>Costly; imperfect</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box defender">
+    <span class="lbl">Defender's view — retrieval is an authorisation decision</span>
+    <p>Treat every query as an access request. The identity that searches should be the user, not the pipeline. The index should store ACLs and enforce them at query time, and the prompt should receive only what the user is allowed to see. Everything else — sanitisation, provenance, canaries — is defence in depth around that primary control.</p>
+  </div>
+
+  <h2 id="m5-detect">5.7 Detection</h2>
+
+  <table>
+    <thead><tr><th style="width:26%">Telemetry</th><th style="width:36%">Signal</th><th>Analytic</th></tr></thead>
+    <tbody>
+      <tr><td>Ingestion log</td><td>New document from an unusual source or author</td><td>Baseline sources; alert on first-seen domains, external authors, bulk uploads</td></tr>
+      <tr><td>Document diff</td><td>Hidden text, HTML comments, white-on-white, metadata changes</td><td>Parse and diff rendered versus raw text; flag invisible content</td></tr>
+      <tr><td>Retrieval trace</td><td>Same chunk retrieved for unrelated queries</td><td>Chunk-level retrieval entropy; alert on over-retrieval</td></tr>
+      <tr><td>Rank anomalies</td><td>Low-similarity chunk at rank 1</td><td>Compare retriever and reranker scores; flag large disagreements</td></tr>
+      <tr><td>Filter telemetry</td><td>Queries with missing tenant or ACL predicates</td><td>Assert in code and log; alert on violations</td></tr>
+      <tr><td>Citation check</td><td>Cited text absent from the cited chunk</td><td>Automated entailment or substring check</td></tr>
+      <tr><td>Access pattern</td><td>Enumeration of document titles, repeated narrow queries</td><td>Query clustering; volume per user versus peer baseline</td></tr>
+      <tr><td>Egress</td><td>Answer contains URLs to first-seen domains</td><td>Allowlist domains; alert on encoded query strings</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m5-lab">5.8 Lab 5 — Poison, retrieve, expose</h2>
+
+  <div class="box lab">
+    <span class="lbl">Lab brief &middot; 5 hours</span>
+    <p><strong>Target.</strong> A RAG assistant over twenty synthetic HR and finance documents in Qdrant, with three users in two tenants and a canary document containing a unique token. The pipeline uses a service account for search and applies ACLs after retrieval.</p>
+    <p><strong>Part A — baseline.</strong> For ten representative questions, record the retrieved chunk IDs, ranks and scores. This is your control set.</p>
+    <p><strong>Part B — poison.</strong> Add a plausible "policy update" document containing an instruction and the target query terms. Measure how many of the ten questions now retrieve it, and at what rank. Record the ASR over 20 phrasings of the target question.</p>
+    <p><strong>Part C — ACL bypass.</strong> As user A, ask questions whose answers exist only in tenant B's documents. Confirm whether the content appears in the answer, in a citation, or only in the retrieved context. Then try the deleted-document case: delete a source file and re-query.</p>
+    <p><strong>Part D — exfiltration.</strong> Combine a poisoned document with a rendered link or a fetch tool to send the canary token to <code>mock-attacker.lab</code>.</p>
+    <p><strong>Part E — defend.</strong> Implement pre-filtering by user identity, tenant-scoped indexes, ingestion sanitisation, provenance delimiters and citation verification. Re-run B–D. Report which attacks are blocked, which are merely detected, and which remain.</p>
+    <p><strong>Deliverable.</strong> Before/after retrieval tables, a findings note with severity and evidence, and a proposed index schema showing ACL and tenant fields.</p>
+  </div>
+
+  <h2 id="m5-takeaways">5.9 Key takeaways</h2>
+  <ul>
+    <li>RAG is an input channel with memory: anything indexed can be retrieved later, by anyone the retrieval identity can serve.</li>
+    <li>Poisoning succeeds through delivery plus retrieval optimisation, not through model manipulation alone.</li>
+    <li>Ranking is a security-relevant decision surface, not a security boundary. Test the retriever and the reranker separately, and keep authorisation correct regardless of rank.</li>
+    <li>The most common serious finding is retrieval running as a service account, bypassing user permissions.</li>
+    <li>Citations must come from metadata, not from the model's imagination.</li>
+    <li>Cleanup after a poisoning test must include derived summaries, caches and backups.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Why is pre-filtering by user identity stronger than post-filtering retrieved chunks?</li>
+      <li>Describe two ways a poisoned document can survive deletion of the original source.</li>
+      <li>What is the difference between corpus poisoning and retrieval manipulation? Give one test for each.</li>
+      <li>How can a citation make a false answer more convincing, and how do you prevent it structurally?</li>
+      <li>You find that a query for "parental leave" returns a document from another tenant. What is the likely bug, and what is the first containment step?</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Module 06 — Attacking Embeddings</div>
+</section>

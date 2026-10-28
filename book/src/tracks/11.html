@@ -1,0 +1,68 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>The capstone is a full engagement against a synthetic enterprise. You are not collecting tricks; you are running a project. You scope the target, agree the rules, plan the tests, chain the findings into a realistic attack path, preserve evidence that would survive scrutiny, and write a report that helps someone decide what to fix first. Then you retest.</p>
+    <p>The scenario is deliberately messy. There are multiple applications, shared infrastructure, a retrieval corpus, an agent with tools and a cloud environment. A single prompt injection may be interesting, but the finding that matters is the path from an anonymous entry point to a business impact — for example, a poisoned support document that causes an agent to email customer data to an attacker-controlled address. That path is what you demonstrate, with evidence and a measurable success rate.</p>
+    <p>Evidence discipline is what separates a professional engagement from a demo. Preserve the assembled prompt, the retrieved document IDs, the tool calls and arguments, the raw response, the model version and the timestamps. Hash the evidence bundle. Keep a chain of custody. Record failures as well as successes, because a control that worked is a finding too. If you cannot reproduce it, do not claim it.</p>
+    <ul>
+      <li><b>Plan:</b> objectives, hypotheses, test matrix, stop conditions, data handling.</li>
+      <li><b>Execute:</b> one factor at a time, trial series, canaries, minimal blast radius.</li>
+      <li><b>Report:</b> business impact, evidence, severity, root cause, remediation, retest criteria.</li>
+      <li><b>Close:</b> cleanup, verification, lessons learned, control validation.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>The deliverable is a decision, not an exploit. If the report does not change what the organisation builds or buys next quarter, the engagement failed regardless of how clever the payload was.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; running an engagement as a controlled experiment</span>
+
+    <p>A capstone is a sequence of dependent experiments under rules of engagement. Design it like one: state the question, define the observable, choose the sample, control the confounders, and pre-register the success criterion. The discipline is familiar from penetration testing, but AI adds stochastic behaviour, retrieval non-determinism, model version drift and tool side effects.</p>
+
+    <h3>The test matrix</h3>
+    <p>Build a matrix with one row per hypothesis and columns for target component, entry vector, technique, identity, expected control, success observable and stop condition. Keep the number of variables small. A typical matrix for an agent target has rows for direct injection, indirect injection via each ingestion path, memory persistence, tool abuse, exfiltration via each channel and guardrail bypass. Each row gets a trial series, not a single attempt.</p>
+
+    <div class="formula">
+      <span class="eq">n ≈ <i>z</i><sup>2</sup> <i>p</i>(1−<i>p</i>) / <i>e</i><sup>2</sup></span>
+      <span class="where">For a desired margin of error <i>e</i> at confidence <i>z</i>, with an initial guess <i>p</i>. If you expect a 30% success rate and want ±10% at 95% confidence, you need about 81 trials. If you only need to know whether a control works at all, 20–30 trials is a reasonable screening sample, but report the interval, not just the point estimate.</span>
+    </div>
+
+    <p>Randomise or block the order of conditions where possible. Model updates, cache warm-up and rate limiting drift over a long engagement; running all of condition A on Monday and all of condition B on Friday confounds the technique with the environment. Record the model version, endpoint, decoding parameters and retrieval snapshot for every trial. If the target changes mid-engagement, stop and re-baseline.</p>
+
+    <h3>Evidence integrity</h3>
+    <p>Evidence must answer: what was sent, what context was assembled, what the model returned, what the system did, who was affected, and when. A screenshot is not enough. Capture the raw request and response, the assembled prompt, the retrieved chunk IDs and hashes, the tool-call arguments and results, the identity that executed, and the timestamps from both the tester and the target where available.</p>
+
+    <table>
+      <thead><tr><th style="width:24%">Evidence item</th><th style="width:36%">Why it matters</th><th>Integrity control</th></tr></thead>
+      <tbody>
+        <tr><td>Assembled prompt</td><td>Reproduction; shows what the model actually saw</td><td>Hash, store encrypted, reference by ID</td></tr>
+        <tr><td>Retrieved chunks</td><td>Proves which content influenced the answer</td><td>Store chunk hash and source version</td></tr>
+        <tr><td>Tool calls</td><td>Shows the action and its authority</td><td>Raw arguments + execution identity + result</td></tr>
+        <tr><td>Model version</td><td>Behaviour changes across versions</td><td>Provider metadata + timestamp</td></tr>
+        <tr><td>Decoding parameters</td><td>Stochastic results are not reproducible without them</td><td>Temperature, top-p, seed, stop sequences</td></tr>
+        <tr><td>Canary observations</td><td>Proves data left the boundary</td><td>DNS/HTTP capture, rendered-resource log</td></tr>
+        <tr><td>Cleanup record</td><td>Proves the test did not persist</td><td>Before/after inventory, fresh-session verification</td></tr>
+      </tbody>
+    </table>
+
+    <p>Hash the evidence bundle at close of each test day and store the hash separately. If the bundle is later challenged, the hash proves it has not changed. Redact personal data in the report, but keep the unredacted original in the controlled evidence store with access logging. Retention should follow the engagement contract and data-protection law, not convenience.</p>
+
+    <h3>From findings to a chain</h3>
+    <p>Individual findings are often low or medium severity. The value of a capstone is showing how they compose. A public agent card, a permissive tool scope, a poisoned document and a rendering bug may each be moderate; together they are an unauthenticated data-exfiltration path. Present the chain as a narrative with numbered steps and a control failure at each step. Then present the individual findings with their own severity, because remediation is usually assigned per component.</p>
+
+    <p>Use a consistent severity method. CVSS is familiar but poorly suited to authority and data-flow issues; MITRE ATLAS gives technique context; a custom matrix of impact, exploitability, reach and detectability is often more useful. Whatever you choose, publish the rubric and apply it consistently. A finding that says "critical" without a rubric is an opinion.</p>
+
+    <h3>The report</h3>
+    <p>A decision-oriented report has an executive summary of no more than two pages, a scope and method section, a ranked findings section, the attack-chain narrative, a remediation plan and an appendix with evidence. Each finding should state: title, severity, affected components and versions, preconditions, steps to reproduce, observed result, business impact, root cause, remediation, compensating controls and retest criteria. Include the attack success rate with its interval and the exact conditions.</p>
+
+    <p>Write for three readers: the executive who needs the decision, the engineer who needs the fix, and the auditor who needs the evidence. Do not make the executive read the payload; do not make the engineer guess the control; do not make the auditor trust a screenshot. A good report survives a change of personnel, a vendor dispute and a retest six months later.</p>
+
+    <h3>Retest and closure</h3>
+    <p>Retest against the same hypotheses and, where possible, the same evidence conditions. A control that blocks the original payload but not its paraphrase is not fixed. Define pass criteria in advance: for example, "ASR ≤ 5% with the upper 95% bound below 15% across 30 trials, and no canary egress". Verify cleanup, remove test artefacts, rotate any credentials exposed during testing, and confirm that monitoring saw the test activity. The last step is the one most engagements skip: feed the detection gaps back into the blue team's rules and the threat model.</p>
+
+    <div class="formula">
+      <span class="eq">Engagement value ≈ (risk reduced × confidence) + (detection improved × coverage) − (cost + residual harm)</span>
+      <span class="where">A clever exploit that nobody can reproduce or detect has low value. A modest finding with a measured control improvement and a working detection has high value. Report the value, not just the vulnerability.</span>
+    </div>
+  </div>

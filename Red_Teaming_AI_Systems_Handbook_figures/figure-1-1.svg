@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 720 350" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" width="720" height="350">
+      <defs>
+        <marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="#5b6b7c"/>
+        </marker>
+      </defs>
+      <!-- trust boundary -->
+      <rect x="150" y="18" width="360" height="314" fill="none" stroke="#c2410c" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="158" y="12" font-size="7.5" fill="#c2410c" letter-spacing="1">TRUST BOUNDARY — UNTRUSTED CONTENT CROSSES HERE</text>
+
+      <!-- layers -->
+      <g font-size="9">
+        <rect x="20" y="30" width="110" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="50" font-weight="bold" fill="#0f4f4a">Data plane</text>
+        <text x="30" y="64" font-size="7.5" fill="#3d5a5a">corpus · datasets · logs</text>
+        <text x="30" y="75" font-size="7.5" fill="#3d5a5a">vector index · memory</text>
+
+        <rect x="20" y="100" width="110" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="120" font-weight="bold" fill="#0f4f4a">Model plane</text>
+        <text x="30" y="134" font-size="7.5" fill="#3d5a5a">weights · adapters</text>
+        <text x="30" y="145" font-size="7.5" fill="#3d5a5a">tokenizer · config</text>
+
+        <rect x="20" y="170" width="110" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="190" font-weight="bold" fill="#0f4f4a">Serving plane</text>
+        <text x="30" y="204" font-size="7.5" fill="#3d5a5a">inference server</text>
+        <text x="30" y="215" font-size="7.5" fill="#3d5a5a">gateway · autoscaling</text>
+
+        <rect x="20" y="240" width="110" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="260" font-weight="bold" fill="#0f4f4a">Platform</text>
+        <text x="30" y="274" font-size="7.5" fill="#3d5a5a">Kubernetes · IAM</text>
+        <text x="30" y="285" font-size="7.5" fill="#3d5a5a">network · secrets</text>
+
+        <!-- app stack -->
+        <rect x="175" y="40" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="56" font-weight="bold" fill="#7a3a08">Application layer</text>
+        <text x="188" y="69" font-size="7.5" fill="#7a5a3a">UI · API · authentication · prompt assembly · output handling</text>
+
+        <rect x="175" y="86" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="102" font-weight="bold" fill="#7a3a08">Orchestration &amp; policy</text>
+        <text x="188" y="115" font-size="7.5" fill="#7a5a3a">routing · guardrails · instruction hierarchy · rate limits</text>
+
+        <rect x="175" y="132" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="148" font-weight="bold" fill="#7a3a08">Agent runtime</text>
+        <text x="188" y="161" font-size="7.5" fill="#7a5a3a">planner · scratchpad · long-term memory · subagents</text>
+
+        <rect x="175" y="178" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="194" font-weight="bold" fill="#7a3a08">Inference</text>
+        <text x="188" y="207" font-size="7.5" fill="#7a5a3a">base model · fine-tune · adapters · sampling parameters</text>
+
+        <rect x="175" y="224" width="310" height="36" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="188" y="240" font-weight="bold" fill="#7a3a08">Retrieval &amp; tools</text>
+        <text x="188" y="253" font-size="7.5" fill="#7a5a3a">vector search · reranker · MCP servers · APIs · code runner</text>
+
+        <rect x="175" y="270" width="310" height="36" rx="3" fill="#e9eef3" stroke="#64748b"/>
+        <text x="188" y="286" font-weight="bold" fill="#33465a">Downstream consumers</text>
+        <text x="188" y="299" font-size="7.5" fill="#4a5a6b">humans · workflows · databases · email · payments · CI/CD</text>
+
+        <!-- right side -->
+        <rect x="540" y="86" width="160" height="58" rx="3" fill="#fff" stroke="#c2410c"/>
+        <text x="552" y="104" font-weight="bold" fill="#a33a0c">Untrusted inputs</text>
+        <text x="552" y="118" font-size="7.5" fill="#6b4a3a">web · email · tickets · docs</text>
+        <text x="552" y="130" font-size="7.5" fill="#6b4a3a">other agents · tool output</text>
+
+        <rect x="540" y="170" width="160" height="58" rx="3" fill="#fff" stroke="#64748b"/>
+        <text x="552" y="188" font-weight="bold" fill="#33465a">Third parties</text>
+        <text x="552" y="202" font-size="7.5" fill="#4a5a6b">model APIs · MCP servers</text>
+        <text x="552" y="214" font-size="7.5" fill="#4a5a6b">SaaS connectors · registries</text>
+      </g>
+
+      <!-- arrows -->
+      <g stroke="#5b6b7c" stroke-width="0.8" fill="none">
+        <path d="M130 56 H172" marker-end="url(#ar)"/>
+        <path d="M130 126 H172" marker-end="url(#ar)"/>
+        <path d="M130 196 H172" marker-end="url(#ar)"/>
+        <path d="M130 266 H172" marker-end="url(#ar)"/>
+        <path d="M485 240 H520 V110 H537" marker-end="url(#ar)"/>
+        <path d="M700 200 H715 V290 H330" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+      </g>
+    </svg>

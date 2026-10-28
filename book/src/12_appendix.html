@@ -1,0 +1,259 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Appendices</span>
+    <h1 id="appendix">Appendices</h1>
+    <p class="dek">The lab, the tools, the mappings, the telemetry schema and the reading list that support the course.</p>
+  </div>
+
+  <h2 id="app-a">A. Building the lab</h2>
+
+  <p>The lab is deliberately small. It runs on one Linux host with 32 GB of RAM and a modern CPU; a GPU is helpful but not required if the model is quantised and small. Everything is local: no cloud accounts, no external model APIs, no real data.</p>
+
+  <h3>Host and network</h3>
+  <table>
+    <thead><tr><th style="width:24%">Requirement</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td>Operating system</td><td>Linux with Docker Engine 26+ or Podman 5+, and Compose v2</td></tr>
+      <tr><td>Memory</td><td>32 GB minimum; 64 GB if running a 7B model unquantised</td></tr>
+      <tr><td>Disk</td><td>100 GB free; model weights dominate</td></tr>
+      <tr><td>Network</td><td>An isolated bridge network with no route to the internet and no route to the host LAN. DNS resolves only <code>*.lab.local</code>.</td></tr>
+      <tr><td>Model</td><td>A 3–8B instruction-tuned open-weight model, quantised. One model is enough; a second small model is useful for the dual-LLM exercise.</td></tr>
+      <tr><td>Attacker services</td><td>A mock collector, a mock web server and a mock metadata service on the lab network</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Services and ports</h3>
+  <table class="compact">
+    <thead><tr><th style="width:22%">Service</th><th style="width:16%">Port</th><th style="width:30%">Purpose</th><th>Lab notes</th></tr></thead>
+    <tbody>
+      <tr><td>Ollama or vLLM</td><td>11434 / 8000</td><td>Inference</td><td>Start unauthenticated for Modules 2 and 9, then add a gateway</td></tr>
+      <tr><td>Qdrant</td><td>6333</td><td>Vector store</td><td>Seed with synthetic documents; one canary</td></tr>
+      <tr><td>MLflow</td><td>5000</td><td>Experiment tracking and registry</td><td>Deliberately unauthenticated until Lab 9</td></tr>
+      <tr><td>Jupyter</td><td>8888</td><td>Notebook</td><td>Token auth initially disabled for the exposure lab</td></tr>
+      <tr><td>Agent service</td><td>8080</td><td>Agent loop, tools, memory</td><td>Custom, small, instrumented</td></tr>
+      <tr><td>MCP servers</td><td>stdio / 9000</td><td>Tool surface</td><td>One local, one remote, one malicious</td></tr>
+      <tr><td>Mock web</td><td>8081</td><td>Untrusted content</td><td>Serves pages with hidden instructions</td></tr>
+      <tr><td>Mock collector</td><td>8082</td><td>Exfiltration sink</td><td>Logs requests, returns 200, never routes onward</td></tr>
+      <tr><td>Mock metadata</td><td>8083</td><td>Cloud credential simulation</td><td>Returns fake credentials and a fake permission list</td></tr>
+      <tr><td>Log collector</td><td>—</td><td>Evidence</td><td>JSON lines: prompt, retrieval, tool calls, egress</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Compose skeleton</h3>
+  <pre>networks:
+  lab:
+    driver: bridge
+    internal: true          # no route out
+services:
+  inference:
+    image: ollama/ollama
+    networks: [lab]
+    volumes: ["models:/root/.ollama"]
+  vectors:
+    image: qdrant/qdrant
+    networks: [lab]
+  agent:
+    build: ./agent
+    networks: [lab]
+    environment:
+      MODEL_URL: http://inference:11434
+      QDRANT_URL: http://vectors:6333
+    volumes: ["./sandbox:/sandbox"]
+  mock-web:
+    build: ./mock-web
+    networks: [lab]
+  collector:
+    build: ./collector
+    networks: [lab]</pre>
+
+  <h3>Safety checklist</h3>
+  <ul class="checklist">
+    <li>The lab network has no default route and no NAT to the internet.</li>
+    <li>No real API keys, cloud credentials or personal data are mounted into any container.</li>
+    <li>The agent's <code>http_get</code> tool can reach only <code>mock-web</code> and <code>collector</code>.</li>
+    <li>Payments and emails are mock services that log to the collector.</li>
+    <li>Every container runs as non-root with a read-only root filesystem where possible.</li>
+    <li>A <code>reset.sh</code> recreates volumes, indexes and memory from seed data.</li>
+    <li>Logs are retained for the course and destroyed afterwards.</li>
+  </ul>
+
+  <h2 id="app-b">B. Tooling</h2>
+
+  <p>The tooling landscape changes quickly; treat this as a map of categories rather than a fixed shopping list. Prefer tools you can read, pin and run offline.</p>
+
+  <table>
+    <thead><tr><th style="width:22%">Category</th><th style="width:40%">Examples</th><th>Use</th></tr></thead>
+    <tbody>
+      <tr><td>Prompt and agent testing</td><td>garak, PyRIT, promptfoo, DeepTeam, custom harnesses</td><td>Systematic trial series, ASR measurement, regression suites</td></tr>
+      <tr><td>Adversarial ML</td><td>Adversarial Robustness Toolbox, CleverHans, textattack</td><td>Evasion, poisoning and extraction experiments</td></tr>
+      <tr><td>Model scanning</td><td>modelscan, picklescan, ClamAV, custom format checks</td><td>Pre-load static checks (not a guarantee)</td></tr>
+      <tr><td>Supply chain</td><td>Syft, Grype, Trivy, cosign, in-toto, SLSA attestations</td><td>SBOM, vulnerability scan, signing and provenance</td></tr>
+      <tr><td>Network and infra</td><td>Nmap, Naabu, httpx, Nuclei, kubectl, kube-bench, Peirates</td><td>Exposure discovery and Kubernetes review</td></tr>
+      <tr><td>Runtime detection</td><td>Falco, Tetragon, eBPF tooling, auditd</td><td>Process, network and file behaviour in AI workloads</td></tr>
+      <tr><td>Cloud</td><td>ScoutSuite, Prowler, Steampipe, native audit logs</td><td>Identity graph and misconfiguration review</td></tr>
+      <tr><td>Vector and embedding</td><td>Native DB clients, sentence-transformers, custom inversion scripts</td><td>Index review and inversion experiments</td></tr>
+      <tr><td>Observability</td><td>OpenTelemetry, Langfuse, Phoenix, Prometheus</td><td>Traces, prompt logs, cost and latency</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box note">
+    <span class="lbl">Harness over heroics</span>
+    <p>A 200-line harness that records assembled prompts, tool calls, seeds and judgements is worth more than a dozen clever one-off payloads. Build it once, reuse it for every module, and keep the raw logs.</p>
+  </div>
+
+  <h2 id="app-c">C. Framework mapping</h2>
+
+  <table class="compact">
+    <thead><tr><th style="width:9%">Module</th><th style="width:26%">Primary ATLAS tactics</th><th style="width:27%">OWASP 2026 (LLM / ASI)</th><th>Control focus</th></tr></thead>
+    <tbody>
+      <tr><td>01</td><td>Reconnaissance, Resource Development, Impact</td><td>All categories (overview)</td><td>Governance, measurement, scope</td></tr>
+      <tr><td>02</td><td>Reconnaissance, Discovery</td><td>LLM04 Supply Chain</td><td>Asset inventory, exposure management</td></tr>
+      <tr><td>03</td><td>Initial Access, Execution, Persistence, Exfiltration</td><td>LLM01, LLM10, LLM03; ASI01</td><td>Provenance, least privilege, egress</td></tr>
+      <tr><td>04</td><td>Privilege Escalation, Lateral Movement, Collection</td><td>LLM03, ASI03, ASI07</td><td>Agent identity, signed messages, delegation</td></tr>
+      <tr><td>05</td><td>ML Attack Staging, Collection, Impact</td><td>LLM05, LLM09; ASI06</td><td>Ingestion review, ACL-aware retrieval</td></tr>
+      <tr><td>06</td><td>Collection, Exfiltration, ML Model Access</td><td>LLM02, LLM09; ASI06</td><td>Vector classification, score minimisation</td></tr>
+      <tr><td>07</td><td>Execution, Privilege Escalation, Credential Access</td><td>LLM04, LLM10, LLM03; ASI02</td><td>Tool pinning, isolation, OAuth audience</td></tr>
+      <tr><td>08</td><td>Resource Development, Initial Access, Persistence</td><td>LLM04, LLM05; ASI04, ASI05</td><td>Provenance, digest pinning, sandbox load</td></tr>
+      <tr><td>09</td><td>Initial Access, Discovery, Privilege Escalation</td><td>LLM03, LLM06; ASI03, ASI10</td><td>Identity graph, network policy, quotas</td></tr>
+      <tr><td>10</td><td>All (planning)</td><td>All (prioritisation)</td><td>Risk scoring, control mapping, detection design</td></tr>
+      <tr><td>11</td><td>All (execution)</td><td>All (evidence)</td><td>Chaining, evidence, cleanup, retest</td></tr>
+    </tbody>
+  </table>
+
+  <p><b>2025 to 2026 translation.</b> The 2026 LLM edition keeps all ten categories but renumbers eight and renames one. The changes most likely to confuse a report: <span class="nw">LLM06:2025</span> Excessive Agency is now <b><span class="nw">LLM03:2026</span></b>; <span class="nw">LLM04:2025</span> Data and Model Poisoning is now <b><span class="nw">LLM05:2026</span></b>; <span class="nw">LLM05:2025</span> Improper Output Handling is now <b><span class="nw">LLM10:2026</span></b>; <span class="nw">LLM09:2025</span> Misinformation is now <b><span class="nw">LLM07:2026</span></b>; <span class="nw">LLM10:2025</span> Unbounded Consumption is now <b><span class="nw">LLM06:2026</span></b>; and <span class="nw">LLM08:2025</span> System Prompt Leakage became <b><span class="nw">LLM08:2026</span> Hidden Context Exposure</b>, covering everything an application places in front of the model without the user seeing it. <span class="nw">LLM01</span> Prompt Injection and <span class="nw">LLM02</span> Sensitive Information Disclosure keep their numbers. The agentic list uses its own ASI01–ASI10 identifiers and is not a renumbering of the LLM list; cite it separately. When comparing findings with older material, state the edition alongside the identifier.</p>
+
+  <h2 id="app-d">D. Telemetry schema</h2>
+
+  <p>A minimum viable record for an AI interaction. Emit one event per model call and one per tool call, linked by <code>trace_id</code>. Redact at the edge, not in the warehouse.</p>
+
+  <pre>{
+  "ts": "2026-10-28T09:14:03.221Z",
+  "trace_id": "3f9c...",
+  "session_id": "s-8821",
+  "principal": {"type": "user", "id": "u-1042", "tenant": "t-07"},
+  "agent": {"id": "claims-orchestrator", "version": "1.4.2"},
+  "model": {"provider": "internal", "id": "llama-3.1-8b", "revision": "sha256:...", "temperature": 0.2},
+  "prompt": {
+    "system_hash": "sha256:...",
+    "assembled_hash": "sha256:...",
+    "assembled_ref": "s3://logs/...",
+    "retrieved": [{"chunk_id": "d-331#4", "source": "policy.pdf", "score": 0.81, "acl": "tenant:t-07"}]
+  },
+  "decision": {"type": "tool_call", "tool": "issue_refund", "args": {"amount": 240, "account": "a-99"}},
+  "authorisation": {"decision": "allow", "policy": "refund<=250", "approver": null},
+  "result": {"status": "ok", "latency_ms": 812},
+  "egress": {"destination": "ledger.lab.local", "allowed": true}
+}</pre>
+
+  <p>Store the assembled prompt by reference, not only by hash: reproduction requires the text. Encrypt the store, restrict access, and set retention. The log is now one of the most sensitive datasets in the organisation.</p>
+
+  <h2 id="app-e">E. Glossary</h2>
+
+  <table class="compact">
+    <thead><tr><th style="width:24%">Term</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr><td><b>A2A</b></td><td>Agent2Agent protocol for interoperability between independent agents; agent cards, tasks, messages and artifacts.</td></tr>
+      <tr><td><b>Adapter (LoRA)</b></td><td>A small set of weights that modifies a base model's behaviour without retraining it fully.</td></tr>
+      <tr><td><b>Agent</b></td><td>A model plus a loop, memory and tools, able to take actions toward a goal.</td></tr>
+      <tr><td><b>Agent card</b></td><td>Machine-readable metadata describing an A2A agent's skills, supported interfaces and security schemes.</td></tr>
+      <tr><td><b>ASR</b></td><td>Attack success rate: proportion of trials in which the objective is achieved.</td></tr>
+      <tr><td><b>Attention</b></td><td>The transformer operation in which each position computes query, key and value vectors and mixes information from other positions according to their similarity.</td></tr>
+      <tr><td><b>Backpropagation</b></td><td>Reverse-mode differentiation through a neural network; computes the gradient of the loss with respect to every parameter in one backward pass.</td></tr>
+      <tr><td><b>BPE</b></td><td>Byte Pair Encoding: a subword tokenisation method that repeatedly merges the most frequent adjacent symbol pair to build a fixed vocabulary.</td></tr>
+      <tr><td><b>Chunk</b></td><td>A segment of a document stored and embedded for retrieval.</td></tr>
+      <tr><td><b>Confused deputy</b></td><td>A component with authority that is tricked into using it on behalf of a less-privileged party.</td></tr>
+      <tr><td><b>Context window</b></td><td>The maximum number of tokens a model can process in one call.</td></tr>
+      <tr><td><b>DPO</b></td><td>Direct Preference Optimisation: preference tuning that optimises a policy directly on chosen/rejected response pairs without a separate reward model.</td></tr>
+      <tr><td><b>Embedding</b></td><td>A vector representation of content, used for similarity search.</td></tr>
+      <tr><td><b>Gradient</b></td><td>The vector of partial derivatives of a loss with respect to model parameters or inputs; the signal used for training and for gradient-based adversarial examples.</td></tr>
+      <tr><td><b>Guardrail</b></td><td>A control that inspects or constrains model input, output or actions.</td></tr>
+      <tr><td><b>Indirect prompt injection</b></td><td>Instructions delivered through content the model reads, rather than through the user's message.</td></tr>
+      <tr><td><b>Instruction hierarchy</b></td><td>The learned precedence of system, developer, user and tool content.</td></tr>
+      <tr><td><b>KV cache</b></td><td>Stored key and value tensors for previously processed tokens, reused during generation to avoid recomputing attention.</td></tr>
+      <tr><td><b>Lethal trifecta</b></td><td>Private data access + untrusted content + outbound channel in one agent.</td></tr>
+      <tr><td><b>Logits</b></td><td>The unnormalised scores a model produces for each vocabulary token before softmax converts them into probabilities.</td></tr>
+      <tr><td><b>LoRA</b></td><td>Low-Rank Adaptation: parameter-efficient fine-tuning that learns a low-rank update <i>BA</i> to a frozen weight matrix.</td></tr>
+      <tr><td><b>MCP</b></td><td>Model Context Protocol: JSON-RPC standard for exposing tools, resources and prompts to a model host.</td></tr>
+      <tr><td><b>Membership inference</b></td><td>Determining whether a specific record was part of a dataset or index.</td></tr>
+      <tr><td><b>Perplexity</b></td><td>The exponentiated average negative log-likelihood of a token sequence; a measure of how well a model predicts text.</td></tr>
+      <tr><td><b>Pickle</b></td><td>Python serialisation format capable of arbitrary object reconstruction; unsafe loaders can execute code on load. PyTorch 2.6+ defaults <code>torch.load</code> to <code>weights_only=True</code>.</td></tr>
+      <tr><td><b>Provenance</b></td><td>Verifiable information about where an artefact or piece of content came from and how it was handled.</td></tr>
+      <tr><td><b>Quantization</b></td><td>Storing weights or activations in lower numerical precision (for example INT8 or INT4) to reduce memory and compute, at some cost in accuracy or behavioural fidelity.</td></tr>
+      <tr><td><b>RAG</b></td><td>Retrieval-augmented generation: injecting retrieved content into a model's context.</td></tr>
+      <tr><td><b>Reranker</b></td><td>A model that reorders retrieval candidates by relevance.</td></tr>
+      <tr><td><b>RLHF</b></td><td>Reinforcement Learning from Human Feedback: training a reward model on human preferences and optimising a policy against it, usually with a KL penalty.</td></tr>
+      <tr><td><b>Rug pull (MCP)</b></td><td>Changing a tool definition or behaviour after the user has approved it.</td></tr>
+      <tr><td><b>SBOM / AI-BOM</b></td><td>Inventory of software / AI components, versions, licences and provenance.</td></tr>
+      <tr><td><b>Safetensors</b></td><td>A tensor serialisation format that does not execute code on load.</td></tr>
+      <tr><td><b>Sampling (MCP)</b></td><td>A server requesting generations from the host's model. Deprecated in the 2026-07-28 revision along with Roots and Logging; still reachable during the deprecation window.</td></tr>
+      <tr><td><b>CIMD</b></td><td>Client ID Metadata Documents: the client-registration mechanism preferred by MCP 2026-07-28, replacing deprecated Dynamic Client Registration.</td></tr>
+      <tr><td><b>SSRF</b></td><td>Server-side request forgery: making a server fetch an attacker-chosen URL.</td></tr>
+      <tr><td><b>Taint tracking</b></td><td>Marking data with its provenance and restricting how it may be used downstream.</td></tr>
+      <tr><td><b>Token</b></td><td>A unit of text produced by a tokenizer and mapped to an integer ID; the model's actual input and output unit.</td></tr>
+      <tr><td><b>Transformer</b></td><td>A neural architecture built from attention and feed-forward blocks with residual connections; the basis of modern language models.</td></tr>
+      <tr><td><b>Tool poisoning</b></td><td>Embedding instructions in a tool's description or schema to influence the model.</td></tr>
+      <tr><td><b>Vector database</b></td><td>A store optimised for nearest-neighbour search over embeddings.</td></tr>
+      <tr><td><b>Workload identity</b></td><td>A short-lived, scoped identity issued to a running workload rather than a static key.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="app-f">F. References and further reading</h2>
+
+  <table class="compact">
+    <thead><tr><th style="width:30%">Source</th><th>Why read it</th></tr></thead>
+    <tbody>
+      <tr><td>Vaswani et al., <i>Attention Is All You Need</i> (2017)</td><td>The transformer architecture: scaled dot-product attention, multi-head attention and positional encoding</td></tr>
+      <tr><td>Sennrich et al., <i>Neural Machine Translation of Rare Words with Subword Units</i> (2016); Radford et al., <i>Language Models are Unsupervised Multitask Learners</i> (2019)</td><td>BPE and byte-level BPE; the tokenizer design behind GPT-2 and many later models</td></tr>
+      <tr><td>Brown et al., <i>Language Models are Few-Shot Learners</i> (2020)</td><td>GPT-3, in-context learning and the scaling behaviour that made prompt-level attacks interesting</td></tr>
+      <tr><td>Hoffmann et al., <i>Training Compute-Optimal Large Language Models</i> (2022)</td><td>Chinchilla scaling laws and the data-per-parameter heuristic</td></tr>
+      <tr><td>Hu et al., <i>LoRA: Low-Rank Adaptation of Large Language Models</i> (2021); Dettmers et al., <i>QLoRA</i> (2023)</td><td>Parameter-efficient fine-tuning and 4-bit adapter training</td></tr>
+      <tr><td>Ouyang et al., <i>Training Language Models to Follow Instructions with Human Feedback</i> (2022); Rafailov et al., <i>Direct Preference Optimization</i> (2023)</td><td>RLHF and DPO: how post-training shapes refusal and instruction following</td></tr>
+      <tr><td>Goodfellow et al., <i>Explaining and Harnessing Adversarial Examples</i> (2014); Madry et al., <i>Towards Deep Learning Models Resistant to Adversarial Attacks</i> (2017)</td><td>FGSM and PGD; the foundations of gradient-based evasion</td></tr>
+      <tr><td>NIST, <i>AI Risk Management Framework</i> (AI 100-1) and <i>Adversarial Machine Learning: A Taxonomy and Terminology of Attacks and Mitigations</i> (AI 100-2)</td><td>Governance vocabulary and a complete adversarial-ML taxonomy</td></tr>
+      <tr><td>MITRE ATLAS</td><td>Technique catalogue and case studies; mapping to SOC language</td></tr>
+      <tr><td>OWASP, <i>Top 10 for LLM Applications</i> (2026), <i>Top 10 for Agentic Applications</i> (2026) and <i>Agent Control Standard</i> (2026)</td><td>Risk categories, agentic threat coverage and control checklists</td></tr>
+      <tr><td>Cloud Security Alliance, <i>MAESTRO</i> threat modelling for agentic AI</td><td>Layered decomposition method used in Module 10</td></tr>
+      <tr><td>Greshake et al., <i>Not What You've Signed Up For</i> (2023)</td><td>The foundational indirect prompt injection paper</td></tr>
+      <tr><td>Zou et al., <i>Universal and Transferable Adversarial Attacks on Aligned Language Models</i> (2023)</td><td>GCG and adversarial suffixes</td></tr>
+      <tr><td>Debenedetti et al., <i>AgentDojo</i> (2024) and <i>Defeating Prompt Injections by Design</i> (2025)</td><td>Agent security benchmarks and capability-based defences</td></tr>
+      <tr><td>Morris et al., <i>Text Embeddings Reveal (Almost) As Much As Text</i> (2023)</td><td>Embedding inversion methodology</td></tr>
+      <tr><td>Shokri et al. (2017); Carlini et al. (2022)</td><td>Membership inference foundations and rigorous evaluation</td></tr>
+      <tr><td>European Data Protection Board, <i>Opinion 28/2024 on certain data protection aspects related to the processing of personal data in the context of AI models</i></td><td>Case-by-case assessment of anonymity for models trained on personal data; jurisdiction-specific privacy analysis</td></tr>
+      <tr><td>Cohen et al., <i>Here Comes The AI Worm</i> (2024)</td><td>Self-replicating prompts across agent ecosystems</td></tr>
+      <tr><td>Hubinger et al., <i>Sleeper Agents</i> (2024)</td><td>Conditional backdoor behaviour and why evaluation can miss it</td></tr>
+      <tr><td>Model Context Protocol specification (2026-07-28 revision, stateless core) and security best practices</td><td>Transports, primitives, MRTR, OAuth and known anti-patterns</td></tr>
+      <tr><td>Agent2Agent (A2A) specification, 1.0.1</td><td>Agent cards, supported interfaces, tasks, artifacts and authentication</td></tr>
+      <tr><td>SLSA, Sigstore/cosign, in-toto</td><td>Provenance and signing for artefacts and pipelines</td></tr>
+      <tr><td>NIST SP 800-207 (zero trust), SP 800-190 (containers), SP 800-218 (secure software)</td><td>The infrastructure and supply-chain foundations this course assumes</td></tr>
+      <tr><td>Vendor research on copilot exfiltration and MCP tool poisoning (2025)</td><td>Concrete real-world demonstrations of the patterns in Modules 3 and 7</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="app-g">G. Knowledge check answer pointers</h2>
+
+  <p class="small">These are marking pointers for instructors, not model answers. A strong response gives the mechanism, a concrete example and the relevant control.</p>
+
+  <table class="compact">
+    <thead><tr><th style="width:11%">Module</th><th>Pointers</th></tr></thead>
+    <tbody>
+      <tr><td>01</td><td>1. Single trials cannot distinguish refusal from classifier block from sampling noise; use trial series and controls. 2. Prompt assembly, memory, retrieval, tools, agent runtime, serving. 3. Untrusted content + agency; indirect injection plus refund authority. 4. Evasion = fool inference; poisoning = corrupt training/index; privacy = infer or reconstruct data. 5. Benign request that must always succeed; a failure means the harness or model is broken, invalidating results.</td></tr>
+      <tr><td>02</td><td>1. A hub account exposes artefacts and naming, not just intent. 2. Ownership, authentication, intended exposure. 3. Error shape, headers, model listing, streaming format, rate-limit naming. 4. Application permissions act as the service across the tenant; delegated act as the user. 5. Web logs, WAF, CDN, auth logs, DNS, honeytokens.</td></tr>
+      <tr><td>03</td><td>1. Hierarchy is learned, not enforced; authority spoofing and task reframing defeat it. 2. Vary the payload and inspect whether a classifier or the model produced the refusal; compare with a known-blocked string. 3. Persistence across sessions/tenants, broader reach, survival of the original context. 4. Reading files, sending mail, querying data as a service account. 5. Egress allowlist or removal of tool authority; operational cost is reduced functionality. 6. Proxy/DNS logs, first-seen domains, encoded query strings, canary tokens.</td></tr>
+      <tr><td>04</td><td>1. MCP connects agent to tools/data; A2A connects agents. Different trust directions. 2. Skills, endpoint, auth scheme; enables targeted task submission or impersonation. 3. Signing authenticates the sender, not the intent; injection inside a legitimate message remains. 4. Subagent asks orchestrator to perform a privileged step; fix with per-action authorisation tied to the original principal. 5. Forwarding the caller's token downstream; one compromised agent inherits the user's authority everywhere. 6. Baseline the call graph; alert on new edges, especially cross-tenant or cross-boundary.</td></tr>
+      <tr><td>05</td><td>1. Post-filtering exposes restricted text to the model before the filter; pre-filtering prevents exposure. 2. Summaries written back, re-embedding, caches, snapshots, replicas. 3. Poisoning changes content; manipulation changes ranking. Test by adding a document versus perturbing a query. 4. Model-generated citations attribute claims to trusted sources; derive citations from chunk metadata and verify. 5. Missing tenant predicate in retrieval; contain by disabling the endpoint or enforcing the filter, then audit access logs.</td></tr>
+      <tr><td>06</td><td>1. Less ambiguity per token; formulaic text has fewer plausible reconstructions. 2. Membership asks whether a record is present; inversion recovers content. Inversion is harder to prevent fully but membership is harder to detect. 3. Scores act as a similarity oracle for iterative probing. 4. Images can be reconstructed from embeddings, not just captioned. 5. Encryption, score rounding, rate limits; costs are utility, transparency and latency.</td></tr>
+      <tr><td>07</td><td>1. It is prompt material supplied by a potentially untrusted party. 2. Approval is cached by server, not by definition hash; detect by hashing definitions and re-prompting on change. 3. Server uses its token to read a file the user cannot; fix by authorising the user. 4. Forwarding the client token upstream; audience binding makes a token unusable elsewhere. 5. It consumes quota and can relay content through a trusted model without a tool side effect. 6. Non-root, read-only root, one mounted directory, egress to one host, no ambient credentials, resource limits.</td></tr>
+      <tr><td>08</td><td>1. Pickle reconstructs arbitrary objects and calls functions on load. 2. Prevents arbitrary object reconstruction; does not cover configs, tokenizers, adapters or remote code. 3. Trigger condition, target behaviour, clean control, held-out prompts, ASR. 4. Compare digest and behaviour against the expected artefact; pin by digest. 5. Models, datasets, adapters, licences, training provenance, evaluation results. 6. Scanners miss novel formats and obfuscation; sandbox load is the backstop.</td></tr>
+      <tr><td>09</td><td>1. Notebooks and MLflow often have cluster credentials or artefact access; code execution there is control-plane access. 2. It changes what code and weights run in the serving environment. 3. Network block on link-local, IMDSv2 with hop limit, scoped workload identity. 4. The token authenticates to the API server with the pod's RBAC. 5. Default-deny network policy or per-tenant authentication; it breaks the largest number of paths.</td></tr>
+      <tr><td>10</td><td>1. Content provenance, memory, tool authority, agent-to-agent, tenant, model provider. 2. The provider is a separate legal and technical boundary; its controls are not yours. 3. Moderate impact, low detectability, irreversible → high despite low ASR. 4. A control on many paths: egress allowlist, per-action authorisation, tenant-scoped retrieval. 5. Otherwise nobody is accountable and closure cannot be evidenced.</td></tr>
+      <tr><td>11</td><td>Answers depend on the lab build. Look for an evidenced chain, not a lucky payload; a named chokepoint with an operational cost; a telemetry gap with a concrete instrumentation proposal; proof of cleanup per store; and three actions ranked by risk reduction per unit effort.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box verdict">
+    <span class="lbl">Closing note</span>
+    <p>The techniques in this handbook will age. Models will change, protocols will be revised, and today's default ports will be tomorrow's hardened endpoints. What will not change is the method: map the system, find where untrusted content meets authority, prove the path with evidence, measure it honestly, and leave the environment better instrumented than you found it. That is the job.</p>
+  </div>
+
+  <div class="endmark">End of handbook &middot; Red Teaming AI Systems, Edition 1.1</div>
+</section>

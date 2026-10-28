@@ -1,0 +1,163 @@
+<!-- ============ COVER ============ -->
+<section class="cover">
+  <svg class="grid" viewBox="0 0 210 297" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0c1724" stop-opacity="0"/>
+        <stop offset="1" stop-color="#0c1724" stop-opacity="0.96"/>
+      </linearGradient>
+      <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stop-color="#f59e0b" stop-opacity="0.5"/>
+        <stop offset="1" stop-color="#f59e0b" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <g stroke="#1e3a4f" stroke-width="0.18" opacity="0.75">
+      <path d="M0 40 H210 M0 80 H210 M0 120 H210 M0 160 H210 M0 200 H210 M0 240 H210 M0 280 H210"/>
+      <path d="M30 0 V297 M60 0 V297 M90 0 V297 M120 0 V297 M150 0 V297 M180 0 V297"/>
+    </g>
+    <g stroke="#2c5a6b" stroke-width="0.35" opacity="0.9">
+      <path d="M150 42 L171 66 L196 58 L204 88 L182 104 L190 132 L166 146 L150 128 L128 140 L118 116 L132 96 L120 74 Z"/>
+      <path d="M150 42 L118 116 M171 66 L132 96 M196 58 L166 146 M204 88 L128 140 M182 104 L150 128"/>
+      <path d="M150 42 L196 58 M171 66 L204 88 M196 58 L190 132 M182 104 L166 146"/>
+      <path d="M118 116 L150 128 M128 140 L120 74 M132 96 L190 132"/>
+      <path d="M150 42 L190 132 M171 66 L150 128"/>
+    </g>
+    <circle cx="166" cy="146" r="26" fill="url(#glow)"/>
+    <g fill="#7dd3c7">
+      <circle cx="150" cy="42" r="1.6"/><circle cx="171" cy="66" r="1.3"/><circle cx="196" cy="58" r="1.1"/>
+      <circle cx="204" cy="88" r="1.4"/><circle cx="182" cy="104" r="1.2"/><circle cx="190" cy="132" r="1.5"/>
+      <circle cx="166" cy="146" r="2.2" fill="#f59e0b"/><circle cx="150" cy="128" r="1.2"/>
+      <circle cx="128" cy="140" r="1.3"/><circle cx="118" cy="116" r="1.5"/><circle cx="132" cy="96" r="1.1"/>
+      <circle cx="120" cy="74" r="1.4"/>
+    </g>
+    <rect x="0" y="120" width="210" height="177" fill="url(#fade)"/>
+  </svg>
+
+  <div class="inner">
+    <div class="kicker">Professional security curriculum &middot; Edition 1.1</div>
+    <h1>Red Teaming<br><span class="accent">AI Systems</span></h1>
+    <div class="rule"></div>
+    <div class="sub">A practitioner's handbook for assessing the security of large language models, autonomous agents, retrieval pipelines and the infrastructure that runs them — with a plain-language track for every chapter.</div>
+    <div class="meta">
+      <b>Eleven modules + two foundation primers</b> &middot; from tokens and neurons to a full-scope capstone<br>
+      <b>Two tracks in every chapter</b> &middot; the short version for everyone, then the deep technical dive<br>
+      <b>For</b> red team operators, AI engineers, detection engineers and security architects<br>
+      <b>Companion material</b> &middot; lab builds, threat models, detection queries and reporting templates
+    </div>
+  </div>
+
+  <div class="bottom">
+    Authorised testing only &middot; Defensive guidance included throughout
+    <span>Version 1.1 &middot; 2026</span>
+  </div>
+</section>
+
+<!-- ============ ABOUT ============ -->
+<section class="front">
+  <div class="chapter-label">About this handbook</div>
+  <h1 id="about" data-toc="About this handbook">Teaching the attack,<br>not just the tool</h1>
+
+  <p class="lede">Most AI security training stops at a list of prompt tricks. Real red team work against AI-enabled enterprises requires something broader: an understanding of how models are built, served, connected to data and granted authority over actions. This handbook follows that full path.</p>
+
+  <p>The eleven modules in this book correspond to the course syllabus, and two foundation primers in Part 0 supply the machine-learning background that the rest of the course assumes. Each module is written to be taught in a half-day or full-day session, and each contains the conceptual background an instructor needs, the technical depth an operator needs, the telemetry a defender needs, and a lab that turns reading into muscle memory. Modules are cumulative: reconnaissance feeds the agent attacks, agent attacks expose the retrieval layer, retrieval compromise enables persistence, and the capstone asks students to chain all of it against a synthetic enterprise.</p>
+
+  <p>The material is deliberately opinionated about two things. First, <strong>AI security is systems security</strong>. Prompts matter, but so do IAM roles, network policy, package provenance and audit logs. A red team that only tests the model is testing perhaps a fifth of the attack surface. Second, <strong>offence without detection is incomplete</strong>. Every technique in this book is paired with the artefacts it leaves behind and the controls that reduce it, because the value of a red team engagement is measured by what the organisation changes afterwards.</p>
+
+  <div class="box warn">
+    <span class="lbl">The invariant that governs every chapter</span>
+    <p><strong>The model may interpret intent; it must not be the final authority for security invariants.</strong> Authentication, authorisation, tenant isolation, transaction limits, data-access policy, destructive-action approval and egress policy should be deterministic controls wherever feasible. The model can propose an action; the surrounding system decides whether that action is permitted. When this book says that "language becomes authority" or that "the context is the perimeter", it is describing a failure mode to test for, not an architecture to build. Probabilistic interpretation belongs inside the decision boundary; enforcement belongs outside it.</p>
+  </div>
+
+  <h2 id="how-to-use">How to use this book</h2>
+
+  <div class="kv">
+    <div class="row"><div class="k">Audience</div><div class="v">Security practitioners moving into AI red teaming; ML engineers who need an adversary's view; blue teams building AI detections; architects designing agentic systems.</div></div>
+    <div class="row"><div class="k">Prerequisites</div><div class="v">Comfort with Linux, HTTP, Python and containerisation. Basic familiarity with LLM APIs and vector search helps but is taught from first principles in Modules 1 and 5.</div></div>
+    <div class="row"><div class="k">Pacing</div><div class="v">A 12-week instructor-led course, or a five-day intensive using Modules 1–2 as pre-reading. The capstone is designed for two to three days of lab time.</div></div>
+    <div class="row"><div class="k">Lab requirement</div><div class="v">One host with 32 GB RAM (GPU optional), Docker or Podman, and no route to production systems. Appendix A contains the build.</div></div>
+  </div>
+
+  <h3>Two tracks through every chapter</h3>
+  <p>Every module and both foundation primers are written on two levels. <strong>The short version</strong> appears first, in a pale teal panel: no mathematics, no assumed ML background, just the idea, the moving parts and why they matter. It is written for the executive, the auditor, the junior analyst and the experienced operator who wants the shape of the chapter before the detail. <strong>The deep dive</strong> follows immediately: the same subject treated technically, with architecture, equations, failure modes, evidence and controls. Later in each chapter a shaded <em>Deep dive</em> panel adds material for specialists — formalisms, attack trees, mathematics or measurement detail that would slow down a first read. You can read a chapter in either track and still follow the argument; reading both gives you the full picture.</p>
+  <p>The two foundation primers in Part 0 — <em>How AI Reads: Tokens and Transformers</em> and <em>How Neural Networks Learn</em> — assume no prior machine learning. They explain how text becomes tokens, how attention mixes context, how a network is trained by gradient descent, and where each of those mechanisms becomes an attack surface. Readers with an ML background can treat them as a reference; readers without one should read them before Module 1.</p>
+
+  <h3>Structure of each module</h3>
+  <p>Every module opens with learning objectives and a short framing of why the topic matters to an adversary. The body moves through architecture, attack surface, techniques, a worked lab, detection and controls. Modules close with knowledge checks and a short list of primary sources. <strong>Field note</strong> boxes contain operator judgment that does not fit neatly into a procedure; <strong>Defender's view</strong> boxes describe what the technique looks like in telemetry; <strong>Lab</strong> boxes give the exercise brief. <strong>The short version</strong> and <strong>The deep dive</strong> labels mark the two explanatory tracks described above.</p>
+
+  <h3>Conventions</h3>
+  <p>Commands and payloads are shown in monospace. Payloads are illustrative and written against the intentionally vulnerable lab stack; they are not tuned for any third-party product. Hostnames such as <code>lab.local</code>, <code>agent.lab.local</code> and <code>rag.lab.local</code> refer to the local environment. Where a technique depends on a specific product or protocol version, the version is stated. Default ports and API paths are included because both attackers and defenders need them, and because exposure of these services is one of the most common real-world findings in AI environments.</p>
+
+  <div class="box note">
+    <span class="lbl">A note on reproducibility</span>
+    <p>LLM behaviour is stochastic. A payload that succeeds once may fail on the next run, and a defence that blocks one phrasing may pass another. Every test in this book should be run as a <em>trial series</em> — typically 10 to 30 attempts per condition — with temperature, model version, system prompt and seed recorded. Report attack success rate (ASR) with a confidence interval, not a single anecdote. Module 1 explains the methodology in detail.</p>
+  </div>
+
+  <h3>What this book is not</h3>
+  <p>It is not a catalogue of exploits for a named commercial product, and it does not contain working malware. Techniques are described at the level needed to build, test and defend a system, with lab implementations kept deliberately small. Where public research is referenced, the goal is to teach the underlying mechanism so that students can reason about the next variant rather than memorise the last one.</p>
+
+  <div class="endmark">Red Teaming AI Systems &middot; About this handbook</div>
+</section>
+
+<!-- ============ CONTENTS ============ -->
+<section class="front">
+  <div class="chapter-label">Contents</div>
+  <h1 id="contents">Contents</h1>
+  <!--TOC-->
+</section>
+
+<!-- ============ ETHICS ============ -->
+<section class="front">
+  <div class="chapter-label">Before you begin</div>
+  <h1 id="ethics">Authorisation, ethics<br>and safety</h1>
+
+  <p class="lede">AI red teaming creates unusual risks: the target may take real actions, the data may be personal, and the model may produce content that would be harmful if released. The controls in this section are not administrative decoration. They are the difference between a professional engagement and an incident.</p>
+
+  <h2 id="authorisation">Authorisation is specific, written and current</h2>
+
+  <p>Do not rely on verbal approval. This methodology requires current written authorisation and a documented scope before testing. Obtain a signed scope document that names the systems, environments, domains, accounts and data sets in scope; the techniques permitted and prohibited; the testing window; the personnel authorised to act; and the escalation contacts on both sides. Written approval is both a professional control and the clearest evidence that the testing was authorised. AI engagements need clauses that traditional penetration tests often omit:</p>
+
+  <ul>
+    <li><strong>Model and data scope.</strong> Which models, adapters, vector indexes, datasets and agent identities may be touched. Whether prompts and outputs may be retained, and for how long.</li>
+    <li><strong>Action scope.</strong> Which tools an agent may be induced to call. A test that makes a support agent issue a refund is materially different from one that makes it send an email. Name the maximum blast radius in business terms.</li>
+    <li><strong>Third-party boundaries.</strong> Model providers, SaaS connectors and MCP servers often sit under separate terms of service. Attacking a provider's infrastructure is not authorised by the customer's permission. Test the customer's configuration; do not attack the vendor.</li>
+    <li><strong>Data handling.</strong> Personal data encountered during testing must be minimised, stored encrypted, access-logged and destroyed on an agreed schedule. Prompt logs frequently become a new sensitive data store — plan for that.</li>
+    <li><strong>Stop conditions.</strong> Pre-agreed triggers that halt testing immediately: evidence of real customer data beyond the approved sample, unintended persistence, a production action that cannot be reversed, or any sign that a third party is exploiting the same weakness.</li>
+  </ul>
+
+  <div class="box warn">
+    <span class="lbl">The two-authorisation rule</span>
+    <p>For any technique that can cause an externally visible action — sending messages, spending money, modifying records, changing access — require written confirmation from both the engagement lead and the system owner for that specific action class. Keep the confirmation with the test record. "It was in scope" is a weak defence if the scope said "read-only".</p>
+  </div>
+
+  <h2 id="harm">Minimising harm while testing</h2>
+
+  <p>Prefer synthetic data and canary records over real customer data. When real data is unavoidable, use the smallest viable sample, tokenise or redact at the earliest point, and never place it in a third-party model without explicit approval. Poisoning tests should target dedicated indexes or clearly marked documents; never poison a shared production knowledge base, even reversibly, because retrieval caches, backups and downstream copies may outlive the test.</p>
+
+  <p>Generated content deserves the same care. Models under adversarial pressure can produce defamatory, extremist or illegal material. Store only what is necessary to demonstrate the finding, redact it in reports, and avoid reproducing harmful output in executive summaries. If a test produces material that appears to be genuine illegal content rather than a model artefact, stop and follow the incident process.</p>
+
+  <h2 id="disclosure">Responsible disclosure</h2>
+
+  <p>If testing reveals a vulnerability in a vendor product rather than the customer's configuration, the customer's contract usually requires notifying the vendor through its security contact. Agree disclosure timelines in writing, keep the customer informed, and do not publish before a fix or a mutually agreed date. For model behaviour issues without a clear vendor fix — for example, a jailbreak that bypasses a safety filter — disclosure should focus on the class of weakness and the recommended control, not on a ready-to-share bypass.</p>
+
+  <h2 id="law">Legal and regulatory context</h2>
+
+  <p>Computer-misuse and unauthorised-access law generally applies to AI-enabled systems as it does to other computer systems. Precise definitions of authorisation, access, modification and impairment vary by jurisdiction, and an AI system may add data-protection, consumer-protection and sector-specific obligations. Unauthorised access, modification or impairment can be criminal even when the "victim" is a chatbot. Beyond computer crime statutes, consider data protection law (prompt and output logs are often personal data), sector regulation (financial, health, critical infrastructure), the EU AI Act's obligations for high-risk systems, and contractual duties in model provider terms. When in doubt, ask counsel before testing, not after.</p>
+
+  <p>There is also a professional duty that precedes law: <strong>do not use the techniques in this book against systems you do not own or have explicit permission to test.</strong> The lab in Appendix A exists so that practice never requires a victim.</p>
+
+  <h2 id="safety-card">Operator safety card</h2>
+
+  <table class="compact">
+    <thead><tr><th style="width:31%">Risk</th><th style="width:36%">Before the test</th><th>If it happens</th></tr></thead>
+    <tbody>
+      <tr><td>Real customer data appears in output</td><td>Define an approved data sample; enable redaction at the logging layer</td><td>Stop, preserve minimal evidence, notify the data owner within the agreed window</td></tr>
+      <tr><td>Agent takes an irreversible action</td><td>Enumerate irreversible tools; require human approval in the lab build</td><td>Trigger the rollback runbook; do not attempt to "fix" it with more prompts</td></tr>
+      <tr><td>Persistence survives the test</td><td>Inventory memory stores, scheduled jobs, uploaded documents and agent registrations</td><td>Execute the pre-agreed cleanup checklist and verify with a fresh session</td></tr>
+      <tr><td>Third party is active in the environment</td><td>Baseline logs before testing; agree indicators of compromise sharing</td><td>Stop testing, preserve logs, escalate to the incident lead</td></tr>
+      <tr><td>Harmful content is generated</td><td>Agree retention rules; use an isolated model instance</td><td>Do not redistribute; redact; follow content-incident policy</td></tr>
+      <tr><td>Cost or rate limits are exhausted</td><td>Set spend caps and request quotas with the provider</td><td>Pause, notify the owner, document the cost impact as a finding</td></tr>
+    </tbody>
+  </table>
+
+  <div class="endmark">Red Teaming AI Systems &middot; Authorisation and safety</div>
+</section>

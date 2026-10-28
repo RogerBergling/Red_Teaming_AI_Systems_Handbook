@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" width="700" height="320">
+      <defs><marker id="a10" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7b8a9a"/></marker></defs>
+      <!-- boundaries -->
+      <rect x="120" y="30" width="440" height="250" fill="none" stroke="#c2410c" stroke-dasharray="5 3"/>
+      <text x="128" y="24" font-size="7" fill="#c2410c" letter-spacing="0.8">ORGANISATION BOUNDARY</text>
+      <rect x="245" y="95" width="190" height="150" fill="none" stroke="#0f766e" stroke-dasharray="4 3"/>
+      <text x="253" y="90" font-size="7" fill="#0f766e" letter-spacing="0.8">AGENT RUNTIME</text>
+
+      <g font-size="7.5">
+        <!-- external -->
+        <rect x="12" y="54" width="82" height="42" rx="2" fill="#fff" stroke="#64748b"/>
+        <text x="22" y="70" font-weight="bold" fill="#33465a">User</text>
+        <text x="22" y="82" font-size="6.8" fill="#5b6b7c">browser / API</text>
+
+        <rect x="12" y="180" width="82" height="42" rx="2" fill="#fff" stroke="#c2410c"/>
+        <text x="22" y="196" font-weight="bold" fill="#a33a0c">Attacker</text>
+        <text x="22" y="208" font-size="6.8" fill="#6b4a3a">content publisher</text>
+
+        <!-- processes -->
+        <rect x="140" y="54" width="92" height="42" rx="2" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="150" y="70" font-weight="bold" fill="#0f4f4a">App / API</text>
+        <text x="150" y="82" font-size="6.8" fill="#3d5a5a">auth · assembly</text>
+
+        <rect x="265" y="40" width="92" height="40" rx="2" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="275" y="55" font-weight="bold" fill="#7a3a08">LLM</text>
+        <text x="275" y="67" font-size="6.8" fill="#7a5a3a">inference</text>
+
+        <rect x="265" y="110" width="92" height="42" rx="2" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="275" y="126" font-weight="bold" fill="#7a3a08">Agent loop</text>
+        <text x="275" y="138" font-size="6.8" fill="#7a5a3a">plan · tools</text>
+
+        <rect x="265" y="190" width="92" height="42" rx="2" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="275" y="206" font-weight="bold" fill="#7a3a08">Tools</text>
+        <text x="275" y="218" font-size="6.8" fill="#7a5a3a">MCP · APIs</text>
+
+        <rect x="400" y="54" width="92" height="42" rx="2" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="410" y="70" font-weight="bold" fill="#0f4f4a">Vector DB</text>
+        <text x="410" y="82" font-size="6.8" fill="#3d5a5a">embeddings</text>
+
+        <rect x="400" y="120" width="92" height="42" rx="2" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="410" y="136" font-weight="bold" fill="#0f4f4a">Memory</text>
+        <text x="410" y="148" font-size="6.8" fill="#3d5a5a">profile · history</text>
+
+        <rect x="400" y="190" width="92" height="42" rx="2" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="410" y="206" font-weight="bold" fill="#0f4f4a">Data stores</text>
+        <text x="410" y="218" font-size="6.8" fill="#3d5a5a">CRM · files · SQL</text>
+
+        <!-- external third party -->
+        <rect x="580" y="54" width="108" height="52" rx="2" fill="#fff" stroke="#c2410c"/>
+        <text x="590" y="70" font-weight="bold" fill="#a33a0c">Model provider</text>
+        <text x="590" y="82" font-size="6.8" fill="#6b4a3a">third-party API</text>
+        <text x="590" y="94" font-size="6.8" fill="#6b4a3a">subprocessor</text>
+
+        <rect x="580" y="190" width="108" height="52" rx="2" fill="#fff" stroke="#c2410c"/>
+        <text x="590" y="206" font-weight="bold" fill="#a33a0c">External agent</text>
+        <text x="590" y="218" font-size="6.8" fill="#6b4a3a">A2A / MCP server</text>
+        <text x="590" y="230" font-size="6.8" fill="#6b4a3a">vendor-owned</text>
+
+        <!-- flows -->
+        <g stroke="#7b8a9a" stroke-width="0.7" fill="none">
+          <path d="M94 72 H137" marker-end="url(#a10)"/>
+          <path d="M186 72 H262" marker-end="url(#a10)"/>
+          <path d="M311 80 V107" marker-end="url(#a10)"/>
+          <path d="M311 152 V187" marker-end="url(#a10)"/>
+          <path d="M357 131 H397" marker-end="url(#a10)"/>
+          <path d="M357 211 H397" marker-end="url(#a10)"/>
+          <path d="M492 75 H577" stroke-dasharray="3 2" marker-end="url(#a10)"/>
+          <path d="M492 211 H577" stroke-dasharray="3 2" marker-end="url(#a10)"/>
+          <path d="M94 201 C130 201 120 150 140 100" stroke="#c2410c" stroke-dasharray="2 2" marker-end="url(#a10)"/>
+          <path d="M492 66 C510 66 510 120 492 135" stroke="#c2410c" stroke-dasharray="2 2" marker-end="url(#a10)"/>
+        </g>
+        <g font-size="6.4" fill="#7b8a9a">
+          <text x="100" y="66">request</text>
+          <text x="205" y="66">prompt</text>
+          <text x="318" y="98">context</text>
+          <text x="318" y="174">call</text>
+          <text x="365" y="126">query</text>
+          <text x="365" y="206">read/write</text>
+          <text x="500" y="70">inference</text>
+          <text x="500" y="206">tasks</text>
+        </g>
+        <text x="520" y="160" font-size="6.6" fill="#c2410c">injected content → retrieval → agent</text>
+      </g>
+    </svg>

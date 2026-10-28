@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" width="700" height="250">
+      <defs>
+        <marker id="a6" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7b8a9a"/></marker>
+      </defs>
+      <g font-size="8">
+        <rect x="20" y="40" width="120" height="52" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="32" y="59" font-weight="bold" fill="#33465a">Stolen vectors</text>
+        <text x="32" y="72" font-size="7.2" fill="#5b6b7c">index dump, API,</text>
+        <text x="32" y="83" font-size="7.2" fill="#5b6b7c">backup, logs</text>
+
+        <rect x="170" y="40" width="130" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="182" y="59" font-weight="bold" fill="#0f4f4a">Candidate pool</text>
+        <text x="182" y="72" font-size="7.2" fill="#3d5a5a">public corpus,</text>
+        <text x="182" y="83" font-size="7.2" fill="#3d5a5a">domain documents</text>
+
+        <rect x="330" y="40" width="120" height="52" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="342" y="59" font-weight="bold" fill="#7a3a08">Nearest neighbours</text>
+        <text x="342" y="72" font-size="7.2" fill="#7a5a3a">cosine / inner</text>
+        <text x="342" y="83" font-size="7.2" fill="#7a5a3a">product search</text>
+
+        <rect x="480" y="40" width="120" height="52" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="492" y="59" font-weight="bold" fill="#7a3a08">LLM refinement</text>
+        <text x="492" y="72" font-size="7.2" fill="#7a5a3a">propose, embed,</text>
+        <text x="492" y="83" font-size="7.2" fill="#7a5a3a">compare, iterate</text>
+
+        <rect x="620" y="40" width="65" height="52" rx="3" fill="#0f2233" stroke="#0f2233"/>
+        <text x="630" y="59" font-weight="bold" fill="#ffffff">Recovered</text>
+        <text x="630" y="72" font-size="7.2" fill="#a9bccd">text or</text>
+        <text x="630" y="83" font-size="7.2" fill="#a9bccd">attributes</text>
+
+        <g stroke="#7b8a9a" stroke-width="0.8">
+          <path d="M140 66 H167" marker-end="url(#a6)"/>
+          <path d="M300 66 H327" marker-end="url(#a6)"/>
+          <path d="M450 66 H477" marker-end="url(#a6)"/>
+          <path d="M600 66 H617" marker-end="url(#a6)"/>
+        </g>
+
+        <rect x="20" y="130" width="665" height="92" rx="3" fill="#f7f8fa" stroke="#dde3e9"/>
+        <text x="34" y="148" font-weight="bold" fill="#33465a">What success depends on</text>
+        <text x="34" y="164" font-size="7.4" fill="#5b6b7c">Encoder availability · vector dimensionality · text length · domain specificity · whether metadata is stored alongside the vector · query rate limits · presence of noise</text>
+        <text x="34" y="180" font-size="7.4" fill="#5b6b7c">Short, formulaic text (names, addresses, IDs, boilerplate) inverts far more reliably than long prose. Sensitive records are often short and formulaic.</text>
+        <text x="34" y="196" font-size="7.4" fill="#5b6b7c">Cross-modal encoders (image–text) permit reconstruction of images from their embeddings, not just captions.</text>
+        <text x="34" y="212" font-size="7.4" fill="#5b6b7c">Even partial recovery — a name, an amount, a project codename — is often enough to prove a disclosure.</text>
+      </g>
+    </svg>

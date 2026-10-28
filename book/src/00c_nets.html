@@ -1,0 +1,408 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Foundation primer &middot; Part 0</span>
+    <h1 id="p-nets">How Neural Networks Learn</h1>
+    <p class="dek">From a single weighted sum to a pretrained model: forward passes, loss, backpropagation, optimisers, scaling, alignment tuning and the places where all of that becomes an attack surface.</p>
+  </div>
+
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; no mathematics required</div>
+    <p>A neural network is a very large mathematical function with millions or billions of adjustable numbers called <b>parameters</b> or <b>weights</b>. You give it an input — an image, a sentence, a row of data — and it produces an output, such as a label, a score or the next token in a sentence. The architecture is the shape of the function; the weights are what the function has learned.</p>
+    <p>The function is built from layers of simple units. Each unit takes some inputs, multiplies each by a weight, adds them up, adds a bias, and passes the result through a small non-linear function. Stack those units in layers and the network can represent incredibly complicated relationships. "Deep learning" simply means many layers. A transformer, the architecture behind modern language models, is a particular way of arranging layers around attention: each position can draw on the positions the mask makes available to it. In an encoder with unrestricted self-attention that can be every position; in a causal decoder it is the current and earlier positions only.</p>
+    <p>Learning happens by example. The network makes a prediction, a <b>loss function</b> measures how wrong it was, and <b>backpropagation</b> calculates how each weight contributed to that error. An <b>optimiser</b> then nudges every weight a tiny step in the direction that should reduce the error. Repeat this over billions of examples and the weights gradually encode useful patterns. It is closer to fitting a very flexible curve than to writing rules by hand.</p>
+    <p>Modern language models are trained in stages. <b>Pretraining</b> exposes the network to huge amounts of text and asks it to predict the next token, which forces it to learn grammar, facts and something like reasoning. <b>Supervised fine-tuning</b> teaches it to follow instructions. <b>Alignment tuning</b> — reinforcement learning from human feedback or direct preference optimisation — nudges it toward answers people prefer and away from unsafe ones. <b>LoRA</b> and other parameter-efficient methods adapt a pretrained model by training a small add-on instead of all the weights. <b>Quantisation</b> stores weights in fewer bits to make the model cheaper to run.</p>
+    <p>Security relevance: the training data is an input an attacker may be able to poison; the gradients are a channel an attacker can use to craft adversarial inputs; the weights are valuable intellectual property and a place to hide a backdoor; the fine-tuning process can remove safety behaviour; and the model's confidence is not a reliable guide to its correctness.</p>
+    <div class="onething"><b>One thing to remember</b><br>A model is not a database and not a rule engine. It is a statistical function fitted to data. That is why it generalises, why it hallucinates, and why "it behaved correctly in training" is not a security proof.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full mechanism, with equations</span></div>
+
+  <p class="lede">This primer builds a neural network from one neuron to a pretrained, aligned, quantised model. The goal is not to turn every reader into a trainer, but to make the behaviour of the system — including its failure modes — predictable enough to test.</p>
+
+  <h2 id="p-nets-1">0.11 One neuron, many neurons, deep networks</h2>
+
+  <p>The basic unit computes a weighted sum of its inputs, adds a bias and applies a non-linearity:</p>
+
+  <div class="formula">
+    <span class="eq"><i>a</i> = σ( <b>w</b><sup>T</sup><b>x</b> + <i>b</i> ) = σ( Σ<sub><i>i</i></sub> <i>w</i><sub><i>i</i></sub><i>x</i><sub><i>i</i></sub> + <i>b</i> )</span>
+    <span class="where"><b>x</b> is the input vector, <b>w</b> the weights, <i>b</i> a scalar bias and σ a non-linear activation. A single unit can only draw a linear boundary; the non-linearity lets a stack of units draw curved ones.</span>
+  </div>
+
+  <p>The perceptron — a single unit with a step function — can separate linearly separable classes and cannot solve XOR. Adding a <b>hidden layer</b> fixes that: the hidden units learn new features, and the output unit combines them. The universal approximation theorem says that a network with enough hidden units can approximate any continuous function on a compact domain to arbitrary accuracy. It says nothing about whether gradient descent will find those weights, how much data is needed, or whether the function will generalise. Those are empirical questions, and they are where most security properties live.</p>
+
+  <figure>
+    <svg viewBox="0 0 690 300" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs><marker id="nn" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#8b98a6"/></marker></defs>
+      <g font-size="8">
+        <text x="22" y="28" font-size="8.4" font-weight="bold" fill="#33465a">Input</text>
+        <text x="140" y="28" font-size="8.4" font-weight="bold" fill="#33465a">Hidden layer 1</text>
+        <text x="320" y="28" font-size="8.4" font-weight="bold" fill="#33465a">Hidden layer 2</text>
+        <text x="500" y="28" font-size="8.4" font-weight="bold" fill="#33465a">Output</text>
+
+        <g fill="#eef7f5" stroke="#0f766e">
+          <circle cx="52" cy="80" r="13"/><circle cx="52" cy="130" r="13"/><circle cx="52" cy="180" r="13"/><circle cx="52" cy="230" r="13"/>
+          <circle cx="190" cy="65" r="13"/><circle cx="190" cy="115" r="13"/><circle cx="190" cy="165" r="13"/><circle cx="190" cy="215" r="13"/><circle cx="190" cy="255" r="13"/>
+          <circle cx="370" cy="80" r="13"/><circle cx="370" cy="140" r="13"/><circle cx="370" cy="200" r="13"/><circle cx="370" cy="250" r="13"/>
+          <circle cx="540" cy="125" r="13"/><circle cx="540" cy="195" r="13"/>
+        </g>
+        <g stroke="#b9c4ce" stroke-width="0.55" fill="none" opacity="0.9">
+          <path d="M65 80 L177 65 M65 80 L177 115 M65 80 L177 165 M65 80 L177 215 M65 80 L177 255"/>
+          <path d="M65 130 L177 65 M65 130 L177 115 M65 130 L177 165 M65 130 L177 215 M65 130 L177 255"/>
+          <path d="M65 180 L177 65 M65 180 L177 115 M65 180 L177 165 M65 180 L177 215 M65 180 L177 255"/>
+          <path d="M65 230 L177 65 M65 230 L177 115 M65 230 L177 165 M65 230 L177 215 M65 230 L177 255"/>
+          <path d="M203 65 L357 80 M203 65 L357 140 M203 65 L357 200 M203 65 L357 250"/>
+          <path d="M203 115 L357 80 M203 115 L357 140 M203 115 L357 200 M203 115 L357 250"/>
+          <path d="M203 165 L357 80 M203 165 L357 140 M203 165 L357 200 M203 165 L357 250"/>
+          <path d="M203 215 L357 80 M203 215 L357 140 M203 215 L357 200 M203 215 L357 250"/>
+          <path d="M203 255 L357 80 M203 255 L357 140 M203 255 L357 200 M203 255 L357 250"/>
+          <path d="M383 80 L527 125 M383 80 L527 195 M383 140 L527 125 M383 140 L527 195 M383 200 L527 125 M383 200 L527 195 M383 250 L527 125 M383 250 L527 195"/>
+        </g>
+        <g fill="#33465a" font-size="7.2" text-anchor="middle">
+          <text x="52" y="83">x₁</text><text x="52" y="133">x₂</text><text x="52" y="183">x₃</text><text x="52" y="233">x₄</text>
+          <text x="190" y="68">h</text><text x="190" y="118">h</text><text x="190" y="168">h</text><text x="190" y="218">h</text><text x="190" y="258">h</text>
+          <text x="370" y="83">h</text><text x="370" y="143">h</text><text x="370" y="203">h</text><text x="370" y="253">h</text>
+          <text x="540" y="128">ŷ₁</text><text x="540" y="198">ŷ₂</text>
+        </g>
+        <text x="22" y="285" font-size="7.4" fill="#7b8a9a">Every line is a learned weight. Bias terms are omitted for clarity.</text>
+        <text x="420" y="50" font-size="7.4" fill="#7b8a9a">dense = every input connected to every unit</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 0.3 — A fully connected network.</b> Depth lets later layers compose features learned by earlier ones. Width gives each layer more capacity to represent intermediate patterns. Neither guarantees generalisation.</figcaption>
+  </figure>
+
+  <h2 id="p-nets-2">0.12 The forward pass, in matrix form</h2>
+
+  <p>For a batch of <i>B</i> examples, layer <i>l</i> computes:</p>
+
+  <div class="formula">
+    <span class="eq"><b>Z</b><sup>(<i>l</i>)</sup> = <b>A</b><sup>(<i>l</i>−1)</sup><b>W</b><sup>(<i>l</i>)</sup> + <b>b</b><sup>(<i>l</i>)</sup>, &nbsp;&nbsp; <b>A</b><sup>(<i>l</i>)</sup> = σ(<b>Z</b><sup>(<i>l</i>)</sup>)</span>
+    <span class="where">Shapes: <b>A</b><sup>(<i>l</i>−1)</sup> is <i>B</i>×<i>n</i><sub><i>l</i>−1</sub>, <b>W</b><sup>(<i>l</i>)</sup> is <i>n</i><sub><i>l</i>−1</sub>×<i>n</i><sub><i>l</i></sub>, <b>b</b><sup>(<i>l</i>)</sup> is <i>n</i><sub><i>l</i></sub>. The activation is applied element-wise.</span>
+  </div>
+
+  <p>You can read the network as a sequence of learned transformations of a representation. In a language model, the representation starts as token embeddings plus positions and is repeatedly transformed by attention (mixing across positions) and MLPs (transforming each position). The final representation is projected onto the vocabulary to produce logits. The same equations describe a classifier whose last layer produces class probabilities through softmax.</p>
+
+  <p>Parameter counting is worth doing once. A dense layer with <i>n</i><sub>in</sub> inputs and <i>n</i><sub>out</sub> outputs has <i>n</i><sub>in</sub><i>n</i><sub>out</sub> weights plus <i>n</i><sub>out</sub> biases. A two-layer MLP with 1,000 inputs, 1,000 hidden units and 10 outputs has about 1.01 million parameters. A transformer layer's parameter count is dominated by its four attention projections and its MLP, as estimated in the token primer. This is why "just retrain it" is rarely an option and why adapters, quantisation and distillation exist.</p>
+
+  <h2 id="p-nets-3">0.13 Activation functions</h2>
+
+  <p>Without a non-linearity, stacking linear layers collapses to a single linear map. The activation is what gives depth its expressive power.</p>
+
+  <table>
+    <thead><tr><th style="width:17%">Function</th><th style="width:31%">Definition</th><th>Properties and use</th></tr></thead>
+    <tbody>
+      <tr><td><b>Sigmoid</b></td><td>σ(<i>z</i>) = 1 / (1 + e<sup>−<i>z</i></sup>)</td><td>Smooth, bounded to (0,1); saturates and kills gradients for large |<i>z</i>|; still used for gates and binary outputs</td></tr>
+      <tr><td><b>Tanh</b></td><td>(e<sup><i>z</i></sup> − e<sup>−<i>z</i></sup>) / (e<sup><i>z</i></sup> + e<sup>−<i>z</i></sup>)</td><td>Zero-centred, bounded to (−1,1); also saturates</td></tr>
+      <tr><td><b>ReLU</b></td><td>max(0, <i>z</i>)</td><td>Cheap, non-saturating for positive values; can "die" if a unit is always negative</td></tr>
+      <tr><td><b>LeakyReLU</b></td><td>max(α<i>z</i>, <i>z</i>) with small α</td><td>Keeps a gradient for negative inputs; mitigates dying units</td></tr>
+      <tr><td><b>GELU</b></td><td><i>z</i> · Φ(<i>z</i>) &asymp; 0.5<i>z</i>(1 + tanh(√(2/π)(<i>z</i> + 0.044715<i>z</i><sup>3</sup>)))</td><td>Smooth ReLU variant common in transformers; the exact form uses the Gaussian CDF</td></tr>
+      <tr><td><b>SiLU / Swish</b></td><td><i>z</i> · σ(<i>z</i>)</td><td>Smooth, non-monotonic; used in SwiGLU feed-forward blocks</td></tr>
+      <tr><td><b>Softmax</b></td><td>e<sup><i>z<sub>i</sub></i></sup> / Σ<sub><i>j</i></sub> e<sup><i>z<sub>j</sub></i></sup></td><td>Turns a vector into a probability distribution; used at the output and inside attention</td></tr>
+    </tbody>
+  </table>
+
+  <p>Activation choice affects trainability, calibration and adversarial behaviour. ReLU networks are piecewise linear, which makes local gradient-based attacks especially clean; smooth activations make the loss surface smoother but do not remove adversarial vulnerability. Saturating activations can make a model's confidence poorly calibrated, which matters when a security control treats a confidence score as a threshold.</p>
+
+  <h2 id="p-nets-4">0.14 Loss: turning "wrong" into a number</h2>
+
+  <p>Training requires a scalar objective. For regression, mean squared error is common. For classification and language modelling, <b>cross-entropy</b> is standard:</p>
+
+  <div class="formula">
+    <span class="eq">L<sub>CE</sub> = −Σ<sub><i>i</i>=1</sub><sup><i>C</i></sup> <i>y</i><sub><i>i</i></sub> log <i>p</i><sub><i>i</i></sub> &nbsp;&nbsp;&nbsp; (for a one-hot label <i>c</i>: &nbsp; L = −log <i>p</i><sub><i>c</i></sub>)</span>
+    <span class="where"><i>y</i> is the target distribution, <i>p</i> the model's softmax output. Cross-entropy punishes confident wrong answers heavily because −log <i>p</i> grows without bound as <i>p</i> → 0.</span>
+  </div>
+
+  <p>Language modelling applies this at every position: the target is the next token, and the loss is averaged over all predicted positions. The model is trained with <b>teacher forcing</b> — the true previous tokens are fed in, not the model's own guesses — which makes training parallel and stable but creates a mismatch with inference, where errors accumulate. This exposure bias is one reason long generations drift, repeat or compound an early mistake.</p>
+
+  <p>Loss is not the same as the security property you care about. A model can have low next-token loss and still be easily jailbroken, because safety behaviour is not guaranteed by low loss. It may come from supervised fine-tuning, preference optimisation, synthetic or constitutional training, system instructions, classifiers and external policy layers; a thin preference-tuning layer is one common pattern, not the whole mechanism. Conversely, a model with higher loss on a benchmark may be more robust. Evaluate the property, not the proxy.</p>
+
+  <div class="onething"><b>In plain terms</b><br>Loss is the scoreboard. A low score means the model predicts the training data well. It does not mean the model is truthful, safe, fair or hard to fool. Those are different scoreboards, and some of them are adversarial.</div>
+
+  <h2 id="p-nets-5">0.15 Backpropagation: credit assignment by chain rule</h2>
+
+  <p>Backpropagation is reverse-mode automatic differentiation on the computation graph. It answers one question for every parameter: if I nudge this weight slightly, how does the final loss change? The answer is a partial derivative, and it is computed efficiently by reusing intermediate results from the forward pass.</p>
+
+  <p>For a network with layers 1…<i>L</i>, define the pre-activation <b>z</b><sup>(<i>l</i>)</sup> and the error term δ<sup>(<i>l</i>)</sup> = ∂L/∂<b>z</b><sup>(<i>l</i>)</sup>. The backward pass is:</p>
+
+  <div class="formula">
+    <span class="eq">δ<sup>(<i>L</i>)</sup> = ∇<sub><b>z</b></sub>L &nbsp;&nbsp; (for softmax + cross-entropy: δ<sup>(<i>L</i>)</sup> = <b>p</b> − <b>y</b>)</span>
+    <span class="eq">δ<sup>(<i>l</i>)</sup> = ( δ<sup>(<i>l</i>+1)</sup> (<b>W</b><sup>(<i>l</i>+1)</sup>)<sup>T</sup> ) ⊙ σ′( <b>z</b><sup>(<i>l</i>)</sup> )</span>
+    <span class="eq">∂L/∂<b>W</b><sup>(<i>l</i>)</sup> = ( <b>A</b><sup>(<i>l</i>−1)</sup> )<sup>T</sup> δ<sup>(<i>l</i>)</sup>, &nbsp;&nbsp; ∂L/∂<b>b</b><sup>(<i>l</i>)</sup> = Σ δ<sup>(<i>l</i>)</sup></span>
+    <span class="where">⊙ is element-wise multiplication; σ′ is the derivative of the activation. The same recursion works for any differentiable graph: attention, convolutions, normalisation and the embedding lookup all have local backward rules.</span>
+  </div>
+
+  <p>A two-layer example makes the shape clear. With <b>z</b><sub>1</sub> = <b>xW</b><sub>1</sub> + <b>b</b><sub>1</sub>, <b>a</b><sub>1</sub> = ReLU(<b>z</b><sub>1</sub>), <b>z</b><sub>2</sub> = <b>a</b><sub>1</sub><b>W</b><sub>2</sub> + <b>b</b><sub>2</sub> and <b>p</b> = softmax(<b>z</b><sub>2</sub>), the output error is <b>p</b> − <b>y</b>; the hidden error is that vector times <b>W</b><sub>2</sub><sup>T</sup>, zeroed where the ReLU was negative; and the weight gradients are the outer products of the layer inputs and the errors. A batch simply sums or averages those outer products.</p>
+
+  <figure>
+    <svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs>
+        <marker id="fw" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#0f766e"/></marker>
+        <marker id="bw" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#c2410c"/></marker>
+      </defs>
+      <g font-size="8.4">
+        <rect x="24" y="92" width="96" height="46" rx="3" fill="#eef7f5" stroke="#0f766e"/>
+        <text x="38" y="111" font-weight="bold" fill="#0f4f4a">Input x</text>
+        <text x="38" y="125" font-size="7.2" fill="#3d5a5a">batch × d</text>
+
+        <rect x="166" y="92" width="110" height="46" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="180" y="111" font-weight="bold" fill="#7a3a08">Layer 1</text>
+        <text x="180" y="125" font-size="7.2" fill="#7a5a3a">z₁, a₁ = σ(z₁)</text>
+
+        <rect x="322" y="92" width="110" height="46" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="336" y="111" font-weight="bold" fill="#7a3a08">Layer 2</text>
+        <text x="336" y="125" font-size="7.2" fill="#7a5a3a">z₂, p = softmax</text>
+
+        <rect x="478" y="92" width="92" height="46" rx="3" fill="#eef2f6" stroke="#33465a"/>
+        <text x="492" y="111" font-weight="bold" fill="#1f3244">Loss L</text>
+        <text x="492" y="125" font-size="7.2" fill="#4a5a6b">−log p(y)</text>
+
+        <path d="M120 105 H162" stroke="#0f766e" stroke-width="1.1" fill="none" marker-end="url(#fw)"/>
+        <path d="M276 105 H318" stroke="#0f766e" stroke-width="1.1" fill="none" marker-end="url(#fw)"/>
+        <path d="M432 105 H474" stroke="#0f766e" stroke-width="1.1" fill="none" marker-end="url(#fw)"/>
+        <text x="128" y="98" font-size="7" fill="#0f766e">forward</text>
+
+        <path d="M474 132 H438" stroke="#c2410c" stroke-width="1.1" fill="none" marker-end="url(#bw)"/>
+        <path d="M318 132 H282" stroke="#c2410c" stroke-width="1.1" fill="none" marker-end="url(#bw)"/>
+        <path d="M162 132 H126" stroke="#c2410c" stroke-width="1.1" fill="none" marker-end="url(#bw)"/>
+        <text x="520" y="160" font-size="7" fill="#c2410c">backward: δ, gradients</text>
+
+        <path d="M221 150 V196 H64 V144" stroke="#c2410c" stroke-width="0.8" stroke-dasharray="3 2" fill="none" marker-end="url(#bw)"/>
+        <text x="88" y="210" font-size="7.2" fill="#a33a0c">∂L/∂W₁ = a₀ᵀ δ₁</text>
+        <text x="330" y="210" font-size="7.2" fill="#a33a0c">δ₁ = (δ₂ W₂ᵀ) ⊙ σ′(z₁)</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 0.4 — Forward and backward passes.</b> The forward pass stores activations; the backward pass reuses them to compute every parameter gradient in one sweep. Memory for activations is why training needs far more GPU memory than inference.</figcaption>
+  </figure>
+
+  <p>Three practical details matter for security. First, <b>gradient checking</b> — comparing analytic gradients to finite differences — is a standard correctness test; a mismatch can indicate a bug or a deliberately modified training pipeline. Second, gradients are themselves sensitive: they can leak training data in federated learning and they are the substrate of adversarial example generation. Third, <b>gradient masking</b> can make a model appear robust to gradient attacks while remaining vulnerable to black-box or transfer attacks. Robustness claims need multiple attack families, not one optimiser.</p>
+
+  <h2 id="p-nets-6">0.16 Optimisers: from gradient to update</h2>
+
+  <p>Plain stochastic gradient descent takes a step opposite the gradient, scaled by a learning rate η:</p>
+
+  <div class="formula">
+    <span class="eq"><b>θ</b><sub><i>t</i>+1</sub> = <b>θ</b><sub><i>t</i></sub> − η ∇<sub><b>θ</b></sub>L(<b>θ</b><sub><i>t</i></sub>)</span>
+    <span class="where">The gradient is estimated on a mini-batch. Batch size trades gradient noise against throughput; too large a batch can generalise worse without learning-rate adjustment, too small a batch is slow and noisy.</span>
+  </div>
+
+  <p><b>Momentum</b> accumulates a velocity term, damping oscillation and accelerating along consistent directions. <b>Adam</b> additionally maintains a per-parameter estimate of gradient magnitude and normalises the step by it, with bias correction for the initial steps:</p>
+
+  <div class="formula">
+    <span class="eq"><b>m</b><sub><i>t</i></sub> = β<sub>1</sub><b>m</b><sub><i>t</i>−1</sub> + (1−β<sub>1</sub>)<b>g</b><sub><i>t</i></sub>, &nbsp;&nbsp; <b>v</b><sub><i>t</i></sub> = β<sub>2</sub><b>v</b><sub><i>t</i>−1</sub> + (1−β<sub>2</sub>)<b>g</b><sub><i>t</i></sub><sup>2</sup></span>
+    <span class="eq"><b>m̂</b><sub><i>t</i></sub> = <b>m</b><sub><i>t</i></sub> / (1−β<sub>1</sub><sup><i>t</i></sup>), &nbsp;&nbsp; <b>v̂</b><sub><i>t</i></sub> = <b>v</b><sub><i>t</i></sub> / (1−β<sub>2</sub><sup><i>t</i></sup>), &nbsp;&nbsp; <b>θ</b><sub><i>t</i>+1</sub> = <b>θ</b><sub><i>t</i></sub> − η <b>m̂</b><sub><i>t</i></sub> / (√<b>v̂</b><sub><i>t</i></sub> + ε)</span>
+    <span class="where">Typical values: β<sub>1</sub> = 0.9, β<sub>2</sub> = 0.999, ε = 10<sup>−8</sup>. AdamW decouples weight decay from the gradient update, which is the default for most transformer training.</span>
+  </div>
+
+  <p>Learning-rate schedules matter as much as the optimiser. Warm-up avoids early instability; cosine or linear decay improves final quality; gradient clipping prevents rare large updates from destroying a run. Mixed-precision training (BF16/FP16) reduces memory and increases throughput but introduces loss-scaling and numerical-stability concerns. None of these choices is visible in the final weights, which is why reproducible training requires a complete recipe, not just a model card.</p>
+
+  <p>From an attacker's perspective, the optimiser is a lever on the training process. If an adversary can influence the loss, the labels, the data order or the learning rate, they can influence what the model learns. A backdoor is often a small poisoned subset plus a trigger pattern; the optimiser does the rest, and the resulting model behaves normally on clean inputs.</p>
+
+  <h2 id="p-nets-7">0.17 Normalisation, residuals and initialisation</h2>
+
+  <p>Deep networks are hard to train because gradients shrink or explode as they propagate. Three techniques made modern depth practical.</p>
+
+  <p><b>Careful initialisation.</b> Xavier/Glorot initialisation scales weights by the number of inputs and outputs to preserve variance; He initialisation adjusts for ReLU's halving of variance. Bad initialisation produces either saturated activations or vanishing signals.</p>
+
+  <p><b>Normalisation.</b> LayerNorm normalises each example's features; BatchNorm normalises each feature across a batch (and behaves differently at inference); RMSNorm drops mean-centring for speed. Normalisation changes the geometry of the loss surface and makes larger learning rates viable. It also creates a subtle serving risk: a training/serving mismatch in stored normalisation statistics can silently degrade or alter behaviour. That risk is principally associated with BatchNorm-style running statistics. LayerNorm and RMSNorm compute their statistics per example at both training and inference, so they do not carry population statistics in the same way; check the architecture rather than assuming every normalisation layer has this failure mode.</p>
+
+  <p><b>Residual connections.</b> A block computes <b>x</b> + <i>f</i>(<b>x</b>) rather than <i>f</i>(<b>x</b>). The identity path gives gradients a direct route to earlier layers and lets the network learn refinements instead of complete transformations. In transformers, the residual stream is also the medium through which information persists across dozens of layers — and the target of activation-steering attacks.</p>
+
+  <h2 id="p-nets-8">0.18 Generalisation, memorisation and the shape of the data</h2>
+
+  <p>Training loss measures fit to the training set. Generalisation measures performance on unseen data. The gap is controlled by capacity, data quantity and diversity, regularisation and the inductive biases of the architecture.</p>
+
+  <ul>
+    <li><strong>Overfitting</strong> is the gap between low training loss and higher validation loss: the learned function fits patterns specific to the training sample that do not generalise. Those patterns may be noise, spurious correlations, or genuine examples learned too specifically. Memorisation often accompanies overfitting and is a privacy risk, because training examples can sometimes be extracted, but the two concepts are not identical.</li>
+    <li><strong>Underfitting</strong> is high loss on both: the model is too small, undertrained or missing useful features.</li>
+    <li><strong>Regularisation</strong> — weight decay, dropout, early stopping, data augmentation, label smoothing — trades training fit for robustness. Dropout randomly zeros activations during training; at inference it is disabled, which is another train/serve difference to verify.</li>
+    <li><strong>Double descent</strong> describes the observation that test error can rise, peak and then fall again as model size increases past the interpolation threshold. It is a reminder that "bigger is worse" is not a law.</li>
+    <li><strong>Grokking</strong> is a delayed generalisation phenomenon: a model can memorise for many steps and then suddenly learn the general rule. It complicates early-stopping and checkpoint-selection decisions.</li>
+  </ul>
+
+  <p>Data quality can dominate downstream performance and security outcomes. Duplicates inflate effective training on a subset, contamination leaks benchmark answers, and skewed sampling teaches skewed behaviour. For security, the relevant question is not only "is the data clean?" but "who can influence it, and how would we notice?" A small poisoned subset can sometimes establish persistent backdoor behaviour that survives later training, but effectiveness is not guaranteed. In web-scale pretraining it depends strongly on how often the poisoned examples are sampled, the trigger and target behaviour, filtering, model scale, the optimisation path and subsequent post-training. Treat the claim as an experimental question to test under stated conditions, not as a universal property of pretraining.</p>
+
+  <h2 id="p-nets-9">0.19 Architectures and their inductive biases</h2>
+
+  <table>
+    <thead><tr><th style="width:17%">Family</th><th style="width:31%">Core idea</th><th>Security-relevant consequence</th></tr></thead>
+    <tbody>
+      <tr><td><b>MLP</b></td><td>Dense layers; no spatial or sequential prior</td><td>Simple to attack with gradients; no built-in notion of locality or provenance</td></tr>
+      <tr><td><b>CNN</b></td><td>Local filters shared across positions</td><td>Translation equivariance; adversarial patches and texture changes transfer well</td></tr>
+      <tr><td><b>RNN / LSTM</b></td><td>Sequential state carried through time</td><td>Hidden-state poisoning and long-range dependency issues; harder to parallelise</td></tr>
+      <tr><td><b>Transformer</b></td><td>Masked attention across available positions plus position-wise MLP</td><td>Quadratic context cost; instruction/data confusion; attention hijacking; KV-cache exposure</td></tr>
+      <tr><td><b>Mixture of experts</b></td><td>Router selects a subset of expert MLPs per token</td><td>Router manipulation can steer behaviour; expert imbalance; harder to audit</td></tr>
+      <tr><td><b>Diffusion</b></td><td>Iterative denoising from noise</td><td>Membership and extraction risks; prompt and safety-filter interactions differ from LLMs</td></tr>
+    </tbody>
+  </table>
+
+  <p>Transformers dominate language modelling because attention is a flexible, learnable routing mechanism that scales well with data and hardware. In a causal decoder the routing is not all-to-all: a position can attend only to itself and earlier positions. Prompt injection is therefore not explained by literal unrestricted token influence. It is better understood as a failure to enforce semantic trust and instruction boundaries among content that is all available to the model at once — system prompt, user turn, retrieved document, tool output — with no architectural distinction between "instruction" and "data", only a learned one. Architectural mitigations — instruction hierarchies encoded in training, separated channels, tool-call parsers — reduce but do not eliminate the ambiguity.</p>
+
+  <h2 id="p-nets-10">0.20 Pretraining, scaling and the emergence of capability</h2>
+
+  <p>Pretraining is self-supervised next-token prediction over a large corpus. The objective is simple; the data and compute are not. Scaling laws describe how loss falls as parameters <i>N</i>, data <i>D</i> and compute <i>C</i> grow. A common functional form is:</p>
+
+  <div class="formula">
+    <span class="eq">L(<i>N</i>, <i>D</i>) = <i>E</i> + <i>A</i>/<i>N</i><sup>α</sup> + <i>B</i>/<i>D</i><sup>β</sup></span>
+    <span class="where"><i>E</i> is the irreducible loss; the other terms shrink with model size and data. Empirically α ≈ 0.34 and β ≈ 0.28 in the Chinchilla analysis, though the constants depend on data distribution and architecture.</span>
+  </div>
+
+  <p>The Chinchilla result — that for a fixed compute budget, models were significantly undertrained relative to their size — shifted practice toward more data per parameter, roughly 20 tokens per parameter as a planning heuristic. Later work has pushed far beyond that ratio for inference-efficient models. "Emergent abilities" are capabilities that appear abrupt when plotted against scale, though some of the apparent abruptness is an artefact of the metric and the evaluation threshold. For a security team, the practical point is that capability is a function of scale, data and post-training, and that a smaller fine-tune can inherit capabilities — and vulnerabilities — from its base.</p>
+
+  <p><b>Distillation</b> trains a smaller student on a larger teacher's outputs. It can preserve behaviour impressively, including refusal patterns and backdoors, while making the model cheaper to run and harder to attribute. <b>Synthetic data</b> can amplify both useful capability and teacher errors. Both are supply-chain concerns: the provenance of the teacher, the generation prompt and the filtering pipeline matter.</p>
+
+  <h2 id="p-nets-11">0.21 Alignment tuning: SFT, RLHF and DPO</h2>
+
+  <p>Pretraining produces a model that completes text. Post-training shapes it into an assistant that follows instructions and refuses some requests. Three techniques dominate.</p>
+
+  <p><b>Supervised fine-tuning (SFT).</b> Continue training on curated instruction–response pairs with the same next-token loss. This teaches format, tone and basic instruction following. It is only as safe as the demonstration data: a few thousand examples can shift refusal behaviour substantially.</p>
+
+  <p><b>Reinforcement learning from human feedback (RLHF).</b> Collect human preferences between pairs of responses, train a reward model to predict which is preferred, then optimise the policy against that reward with a penalty for drifting too far from the reference model:</p>
+
+  <div class="formula">
+    <span class="eq">P(<i>y</i><sub>w</sub> ≻ <i>y</i><sub>l</sub>) = σ( <i>r</i>(<i>y</i><sub>w</sub>) − <i>r</i>(<i>y</i><sub>l</sub>) )</span>
+    <span class="eq">max<sub>π</sub> &nbsp; 𝔼<sub><i>x</i>,<i>y</i>∼π</sub>[ <i>r</i>(<i>x</i>,<i>y</i>) ] − β · KL( π(·|<i>x</i>) ‖ π<sub>ref</sub>(·|<i>x</i>) )</span>
+    <span class="where">The Bradley–Terry model turns pairwise preferences into a reward; the KL term keeps the policy close to the SFT model so it does not exploit the reward model. PPO is the classical optimiser; many pipelines now use simpler variants.</span>
+  </div>
+
+  <p><b>Direct preference optimisation (DPO).</b> Skips the explicit reward model and optimises the policy directly on preference pairs:</p>
+
+  <div class="formula">
+    <span class="eq">L<sub>DPO</sub> = −𝔼<sub>(<i>x</i>,<i>y</i><sub>w</sub>,<i>y</i><sub>l</sub>)</sub> log σ( β log(π<sub>θ</sub>(<i>y</i><sub>w</sub>|<i>x</i>)/π<sub>ref</sub>(<i>y</i><sub>w</sub>|<i>x</i>)) − β log(π<sub>θ</sub>(<i>y</i><sub>l</sub>|<i>x</i>)/π<sub>ref</sub>(<i>y</i><sub>l</sub>|<i>x</i>)) )</span>
+    <span class="where">β controls how far the policy may move from the reference. DPO is simpler and more stable than a full RL loop, which is why it is widely used for preference tuning.</span>
+  </div>
+
+  <p>Alignment changes behaviour; it does not install a verifiable security policy. Refusal is a learned tendency that can be bypassed by distribution shift, role-play, encoding, many-shot prompting or fine-tuning. Over-refusal is the opposite failure: a model that blocks benign requests because a safety classifier is poorly calibrated. Both are testable, and both should be measured as rates across a diverse prompt set, not as single examples.</p>
+
+  <div class="onething"><b>In plain terms</b><br>Alignment is finishing school, not a firewall. It teaches the model what people prefer, including "don't help with that", but the lesson is statistical. A determined user can often find inputs outside the lesson.</div>
+
+  <h2 id="p-nets-12">0.22 Fine-tuning, LoRA and the adapter supply chain</h2>
+
+  <p>Full fine-tuning updates every weight. It is expensive in memory and can cause <b>catastrophic forgetting</b>: the model improves on the target task and loses unrelated capability or safety behaviour. Parameter-efficient fine-tuning (PEFT) freezes the base model and trains a small number of additional parameters.</p>
+
+  <p><b>LoRA</b> (Low-Rank Adaptation) freezes <b>W</b> and learns a low-rank update:</p>
+
+  <div class="formula">
+    <span class="eq"><b>W</b>′ = <b>W</b> + (α/<i>r</i>) <b>B A</b>, &nbsp;&nbsp; <b>B</b> ∈ ℝ<sup><i>d</i>×<i>r</i></sup>, <b>A</b> ∈ ℝ<sup><i>r</i>×<i>k</i></sup>, &nbsp; <i>r</i> ≪ min(<i>d</i>,<i>k</i>)</span>
+    <span class="where">Only <b>A</b> and <b>B</b> are trained: <i>r</i>(<i>d</i>+<i>k</i>) parameters instead of <i>dk</i>. α scales the update; <i>r</i> is typically 4–64. At inference the update can be merged into <b>W</b>, or kept separate to swap adapters per tenant.</span>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 690 220" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs><marker id="lr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#5b6b7c"/></marker></defs>
+      <g font-size="8.2">
+        <rect x="40" y="34" width="150" height="130" rx="3" fill="#e9eef3" stroke="#64748b"/>
+        <text x="56" y="56" font-weight="bold" fill="#33465a">Frozen base weight</text>
+        <text x="56" y="72" font-size="7.4" fill="#4a5a6b">W &nbsp; d × k</text>
+        <text x="56" y="100" font-size="7.2" fill="#7b8a9a">no gradients</text>
+        <text x="56" y="114" font-size="7.2" fill="#7b8a9a">unchanged by training</text>
+
+        <rect x="246" y="34" width="72" height="56" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="258" y="55" font-weight="bold" fill="#7a3a08">B</text>
+        <text x="258" y="70" font-size="7.2" fill="#7a5a3a">d × r</text>
+        <text x="258" y="83" font-size="7.2" fill="#7a5a3a">trainable</text>
+
+        <rect x="340" y="34" width="72" height="56" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="352" y="55" font-weight="bold" fill="#7a3a08">A</text>
+        <text x="352" y="70" font-size="7.2" fill="#7a5a3a">r × k</text>
+        <text x="352" y="83" font-size="7.2" fill="#7a5a3a">trainable</text>
+
+        <rect x="246" y="122" width="166" height="42" rx="3" fill="#eef7f5" stroke="#0f766e"/>
+        <text x="260" y="140" font-weight="bold" fill="#0f4f4a">Low-rank update</text>
+        <text x="260" y="154" font-size="7.2" fill="#3d5a5a">(α/r) · B A &nbsp; d × k</text>
+
+        <rect x="468" y="58" width="150" height="74" rx="3" fill="#fff" stroke="#33465a"/>
+        <text x="484" y="79" font-weight="bold" fill="#1f3244">Effective weight</text>
+        <text x="484" y="96" font-size="8" fill="#33465a">W′ = W + (α/r)BA</text>
+        <text x="484" y="112" font-size="7.2" fill="#6b7a89">merge for serving, or</text>
+        <text x="484" y="124" font-size="7.2" fill="#6b7a89">keep separate to hot-swap</text>
+
+        <path d="M190 90 H242" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <path d="M318 90 H336" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <path d="M412 90 H464" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <path d="M330 90 V118" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <path d="M412 146 H462 V112" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <text x="246" y="188" font-size="7.4" fill="#7b8a9a">Parameters trained: r(d + k) instead of dk. A rank-8 adapter on a</text>
+        <text x="246" y="200" font-size="7.4" fill="#7b8a9a">4096×4096 projection is ~65k parameters rather than ~16.8M.</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 0.5 — LoRA.</b> The base weights stay frozen; two thin matrices learn a correction. Adapters are small enough to distribute like configuration files, which is precisely why they need the same provenance controls as model weights.</figcaption>
+  </figure>
+
+  <p><b>QLoRA</b> quantises the frozen base to 4-bit (typically NF4), adds double quantisation of the quantisation constants and paged optimisers, then trains LoRA adapters in higher precision. It made fine-tuning large models possible on a single consumer GPU. The security consequence is that the quantised base and the adapter are separate artefacts with separate provenance; a benign base plus a malicious adapter is a malicious model.</p>
+
+  <p>Adapters, prefixes, prompts and embeddings can all be distributed as small files. They are hard to inspect, easy to hide in, and often loaded from public hubs without review. Treat an adapter as code: hash it, pin it, scan it, test its behaviour before and after, and record which base model it was trained against. An adapter trained on a different base may be silently ineffective or subtly different.</p>
+
+  <h2 id="p-nets-13">0.23 Quantisation and efficient inference</h2>
+
+  <p>Weights are usually stored in 16-bit or 32-bit floating point. Quantisation maps them to lower precision — 8-bit, 4-bit, sometimes fewer — to reduce memory and increase throughput. A simple affine scheme is:</p>
+
+  <div class="formula">
+    <span class="eq"><i>q</i> = clip( round(<i>x</i>/<i>s</i>) + <i>z</i>, &nbsp; <i>q</i><sub>min</sub>, <i>q</i><sub>max</sub> ), &nbsp;&nbsp; <i>ŝ</i> = <i>s</i>(<i>q</i> − <i>z</i>)</span>
+    <span class="where"><i>s</i> is a scale, <i>z</i> a zero-point, and the clipping range is chosen per tensor or per group of weights. Group size controls the trade-off between accuracy and overhead.</span>
+  </div>
+
+  <p>Post-training quantisation methods such as GPTQ and AWQ differ in how they choose scales and which weights they protect. GGUF is a model file format rather than a quantisation method: it can store tensors in many quantised types, and converting a model to GGUF is a separate operation from choosing and applying a quantisation scheme. Quantisation-aware training simulates the rounding during training. The important point for security is that quantisation is a behaviour-changing transformation: it can shift refusal rates, degrade instruction following, amplify biases and interact with backdoors. A model evaluated only in BF16 is not necessarily the model that will be served in 4-bit.</p>
+
+  <p>Other inference optimisations have similar hidden-state effects. <b>Pruning</b> removes weights or heads; <b>distillation</b> replaces the model with a smaller one; <b>speculative decoding</b> uses a draft model to propose tokens that the target verifies. Each introduces a new component whose behaviour must be evaluated and whose supply chain must be trusted. <b>Batching</b> and <b>continuous batching</b> share hardware across requests; a bug in request isolation can leak data across tenants, which is an infrastructure finding rather than a model finding.</p>
+
+  <h2 id="p-nets-14">0.24 The adversarial view of a neural network</h2>
+
+  <p>Because a neural network is differentiable almost everywhere, an attacker who can query it and obtain gradients can compute the input change that most increases the loss. The fast gradient sign method is the canonical demonstration:</p>
+
+  <div class="formula">
+    <span class="eq"><b>x</b>′ = <b>x</b> + ε · sign( ∇<sub><b>x</b></sub> L(<b>θ</b>, <b>x</b>, <i>y</i>) )</span>
+    <span class="where">The perturbation is bounded by ε in a chosen norm (often L<sub>∞</sub>). Projected gradient descent iterates the step and projects back into the allowed ball; Carlini–Wagner-style optimisers trade perturbation size for success rate.</span>
+  </div>
+
+  <p>Three properties make adversarial examples a security problem rather than a curiosity. First, perturbations can be imperceptible to humans yet change a classifier's output. Second, they <b>transfer</b>: an example crafted on one model often fools another trained on similar data, so white-box access to the target is not required — an attacker can work from a surrogate. Third, the same logic applies to language: adversarial suffixes and token-level optimisations can steer an LLM toward a target string, and prompt-level attacks exploit the same sensitivity without gradients.</p>
+
+  <p>Other attacks on the learned function:</p>
+  <ul>
+    <li><strong>Poisoning.</strong> Corrupt training data so the model learns a trigger or a systematic bias. Clean-label poisoning is especially hard to detect because the poisoned examples look correct.</li>
+    <li><strong>Backdoors.</strong> A trigger — a rare phrase, a specific token, a visual patch — causes a targeted behaviour while the model remains accurate on clean inputs. Backdoors can survive fine-tuning and quantisation.</li>
+    <li><strong>Membership inference.</strong> Determine whether a record was in the training set, often by comparing loss or confidence to a reference model.</li>
+    <li><strong>Model extraction.</strong> Query a model systematically to train a substitute that approximates its behaviour, recovering functionality and sometimes sensitive decision boundaries.</li>
+    <li><strong>Training-data extraction.</strong> Prompt a model to reproduce memorised sequences. Larger models and duplicated data increase the risk.</li>
+    <li><strong>Activation steering and weight editing.</strong> Modify internal directions or weights to suppress refusal, alter persona or install behaviour. These are white-box techniques but can be performed on open-weight models and then distilled.</li>
+  </ul>
+
+  <p>Defences exist but are partial. Adversarial training improves robustness to the attack family used during training and can reduce accuracy; randomised smoothing provides certified guarantees for narrow perturbation radii; input preprocessing, anomaly detection and ensembles raise the cost of attack. None of these is a substitute for limiting what the model is allowed to do. A classifier that can be fooled is a nuisance; an agent that can be fooled and then call a payment API is an incident.</p>
+
+  <h2 id="p-nets-15">0.25 What to ask about a model you are testing</h2>
+
+  <table>
+    <thead><tr><th style="width:30%">Question</th><th style="width:38%">Why it matters</th><th>Where to look</th></tr></thead>
+    <tbody>
+      <tr><td>What base model, version and tokenizer?</td><td>Behaviour and token boundaries are version-specific; a different tokenizer changes every input</td><td>Model card, config, tokenizer files, API metadata</td></tr>
+      <tr><td>What was it trained and fine-tuned on?</td><td>Poisoning, bias, memorisation and licensing risk live in the data</td><td>Data cards, training logs, dataset manifests</td></tr>
+      <tr><td>What post-training was applied?</td><td>SFT, RLHF, DPO and safety data determine refusal behaviour and its fragility</td><td>Model card, adapter metadata, eval reports</td></tr>
+      <tr><td>What precision is served?</td><td>Quantisation can change safety and accuracy</td><td>Serving config, engine flags, benchmark both precisions</td></tr>
+      <tr><td>What is the context limit and truncation policy?</td><td>Overflow can remove safety instructions or evidence</td><td>Gateway config, prompt assembler, tests at the boundary</td></tr>
+      <tr><td>What can the model do, with whose identity?</td><td>Capability plus authority is the real risk</td><td>Tool registry, IAM roles, approval workflow</td></tr>
+      <tr><td>How is the model evaluated, and against what attacks?</td><td>Accuracy evals do not measure robustness or safety</td><td>Eval harness, red-team reports, regression suite</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="p-nets-takeaways">0.26 Key takeaways</h2>
+  <ul>
+    <li>A network is a parameterised function trained by gradient descent; architecture sets the shape, data sets the behaviour.</li>
+    <li>Backpropagation is efficient credit assignment, not reasoning. It optimises the loss you gave it, including its flaws.</li>
+    <li>Pretraining, SFT, preference tuning, adapters and quantisation are separate stages with separate artefacts and separate supply-chain risks.</li>
+    <li>Fine-tuning can remove safety behaviour; quantisation can change it; adapters can hide it. Evaluate the exact artefact you serve.</li>
+    <li>Gradients enable adversarial examples; data enables poisoning and backdoors; weights enable extraction and white-box editing. Defence must limit impact, not just detect inputs.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Why does a two-layer network need a non-linear activation? What happens to the function class if you remove it?</li>
+      <li>Derive the gradient of the cross-entropy loss with respect to the logits for a softmax output. Why is the result <b>p</b> − <b>y</b>?</li>
+      <li>Explain the difference between pretraining, SFT and preference tuning in terms of the objective each optimises.</li>
+      <li>How many parameters does a rank-8 LoRA adapter add to a 4,096×4,096 projection, and why is that number a supply-chain concern?</li>
+      <li>Give three ways quantisation could change a security-relevant behaviour, and describe how you would test for each.</li>
+      <li>An adversarial example transfers from model A to model B. What does that imply about relying on model secrecy for robustness?</li>
+      <li>Why is a low training loss not evidence that a model is safe or truthful?</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Module 01 — Introduction to Red Teaming AI Systems</div>
+</section>

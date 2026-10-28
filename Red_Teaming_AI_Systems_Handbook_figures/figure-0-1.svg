@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" width="720" height="300">
+      <defs><marker id="at" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#5b6b7c"/></marker></defs>
+      <g font-size="8.4">
+        <rect x="18" y="40" width="112" height="44" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="58" font-weight="bold" fill="#0f4f4a">Token vectors</text>
+        <text x="30" y="72" font-size="7.2" fill="#3d5a5a">H — n × d</text>
+
+        <rect x="168" y="18" width="90" height="34" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="181" y="39" font-weight="bold" fill="#7a3a08">W_Q</text>
+        <rect x="168" y="62" width="90" height="34" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="181" y="83" font-weight="bold" fill="#7a3a08">W_K</text>
+        <rect x="168" y="106" width="90" height="34" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="181" y="127" font-weight="bold" fill="#7a3a08">W_V</text>
+
+        <rect x="292" y="18" width="86" height="34" rx="3" fill="#fff" stroke="#64748b"/>
+        <text x="304" y="39" fill="#33465a">Q</text>
+        <rect x="292" y="62" width="86" height="34" rx="3" fill="#fff" stroke="#64748b"/>
+        <text x="304" y="83" fill="#33465a">K</text>
+        <rect x="292" y="106" width="86" height="34" rx="3" fill="#fff" stroke="#64748b"/>
+        <text x="304" y="127" fill="#33465a">V</text>
+
+        <rect x="412" y="40" width="118" height="60" rx="3" fill="#eef2f6" stroke="#33465a"/>
+        <text x="425" y="60" font-weight="bold" fill="#1f3244">QKᵀ / √d_k</text>
+        <text x="425" y="74" font-size="7.2" fill="#4a5a6b">n × n score matrix</text>
+        <text x="425" y="88" font-size="7.2" fill="#4a5a6b">+ causal mask</text>
+
+        <rect x="412" y="128" width="118" height="50" rx="3" fill="#eef2f6" stroke="#33465a"/>
+        <text x="425" y="147" font-weight="bold" fill="#1f3244">softmax rows</text>
+        <text x="425" y="161" font-size="7.2" fill="#4a5a6b">attention weights</text>
+
+        <rect x="568" y="86" width="128" height="52" rx="3" fill="#eef7f5" stroke="#0f766e"/>
+        <text x="581" y="105" font-weight="bold" fill="#0f4f4a">A × V → W_O</text>
+        <text x="581" y="119" font-size="7.2" fill="#3d5a5a">mixed context per token</text>
+
+        <path d="M130 62 H164 M130 79 H164 M130 123 H164" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+        <path d="M258 35 H288 M258 79 H288 M258 123 H288" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+        <path d="M378 35 H408 V54 M378 79 H408 M378 123 H408 V122" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+        <path d="M471 100 V124" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+        <path d="M530 152 H552 V112 H564" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+
+        <text x="412" y="198" font-size="7.4" fill="#7b8a9a">Each output row is a weighted average of the value vectors.</text>
+        <text x="412" y="210" font-size="7.4" fill="#7b8a9a">Causal mask: position i may only attend to j ≤ i.</text>
+      </g>
+    </svg>

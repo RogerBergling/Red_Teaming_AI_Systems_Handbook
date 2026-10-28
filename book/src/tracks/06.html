@@ -1,0 +1,66 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>An embedding is a list of numbers that represents a piece of text, an image or a record. The numbers are arranged so that similar things end up close together. A vector database stores these lists and answers the question "what is nearest to this one?" — which is how semantic search, recommendation and RAG work.</p>
+    <p>Embeddings feel opaque, so teams often treat them as harmless. They are not. An embedding is a lossy compression of the original content, but "lossy" does not mean "safe". Research has shown that text can be reconstructed from its vector with surprising fidelity, especially when the attacker has a similar model to compare against. A leaked embedding can also reveal whether a specific record is in an index or, in a different attack, whether it was part of a model's training data; it can expose attributes and relationships between records. Those are related but distinct privacy questions, and the chapter treats them separately.</p>
+    <p>There are two more layers of risk. The <b>vector database</b> is a networked service with authentication, access control, backups and APIs — and it is often deployed with defaults, no tenant isolation, or an exposed dashboard. And the <b>embedding space itself</b> can be poisoned: an attacker who can insert vectors can make their content the nearest neighbour for a target query without ever writing a plausible document.</p>
+    <ul>
+      <li><b>Do not expose raw vectors</b> to clients unless the use case requires it; treat them as sensitive derived data.</li>
+      <li><b>Authenticate and authorise the vector store</b> like any database, including per-tenant collections or filters.</li>
+      <li><b>Limit query volume and precision.</b> Inversion and membership attacks need many carefully chosen queries.</li>
+      <li><b>Do not rely on dimensionality reduction or hashing</b> as a privacy control; both preserve much of the signal.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>An embedding is not a hash. A hash is designed to be one-way; an embedding is designed to preserve meaning, and meaning can be recovered.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; what a vector remembers</span>
+
+    <p>Let <i>E</i><sub>θ</sub> be an embedding model. For a record <i>x</i>, the stored vector is <b>v</b> = <i>E</i><sub>θ</sub>(<i>x</i>) ∈ ℝ<sup><i>d</i></sup>. The vector is a deterministic function of the text, but it is not injective: many texts can map to the same or nearby points. Inversion exploits the fact that the mapping is smooth and that the attacker usually knows the model family, the approximate domain and sometimes the exact model.</p>
+
+    <div class="formula">
+      <span class="eq"><b>x̂</b> = argmin<sub><b>x</b></sub> ‖ <i>E</i><sub>θ</sub>(<b>x</b>) − <b>v</b> ‖<sup>2</sup> + λ · R(<b>x</b>)</span>
+      <span class="where"><i>R</i> is a prior or regulariser — fluency, length, language model likelihood, a known template. With a differentiable encoder the attacker can optimise text directly; with a black-box encoder they can search, use a surrogate model, or train a decoder on pairs of (text, vector).</span>
+    </div>
+
+    <p>Attack difficulty depends on access. <b>White-box</b> access to the encoder allows gradient-based optimisation and gives the best reconstruction. <b>Black-box</b> access to an embedding API allows a surrogate model and iterative querying. <b>Stolen vectors</b> without the encoder require a model guess or a trained inversion network. In every case, the attacker's advantage grows with the number of queries, the dimensionality of the vector, and any auxiliary knowledge about the corpus.</p>
+
+    <h3>Membership and attribute inference</h3>
+    <p>Separate <b>index membership</b> from <b>training-set membership</b>. Index membership asks whether a specific record is present in the vector index or retrieval corpus the attacker can query. Training-set membership asks whether a record was used to train the encoder or language model. The first is usually tested through similarity scores and exact or near-exact matches; the second is usually tested through loss, confidence or likelihood differences, often with a shadow model trained on data the attacker controls. They have different access requirements, different privacy meanings and different mitigations.</p>
+
+    <p>For training-set membership, the attacker needs a signal that separates examples the model saw from examples it did not. With a shadow model, the attacker calibrates that signal and reports a score. The standard evaluation is the area under the ROC curve (AUC). An AUC near 0.5 is no better than guessing, but there is no universal security threshold above which a leak is "meaningful": whether 0.55, 0.70 or 0.90 matters depends on the prevalence of members, the attacker's cost, the false-positive tolerance of the decision and the harm of a correct inference. Report the full ROC, the operating point you care about and the base rate, not a single quasi-standard cutoff.</p>
+
+    <div class="formula">
+      <span class="eq">AUC = P( score(member) &gt; score(non-member) )</span>
+      <span class="where">The score could be negative loss, cosine similarity to a query, or a likelihood ratio. Membership inference does not require reconstructing the record; it only requires distinguishing it from a non-member. AUC is a ranking measure, not a calibrated probability of harm.</span>
+    </div>
+
+    <p>Attribute inference is often easier and more damaging. If the vector is close to vectors for "HIV clinic", "salary band 5" or "internal merger", the attribute may be inferable even when the exact text is not. This is a privacy problem for HR, health, finance and any domain where the embedding captures sensitive categories. The mitigation is not to remove the obvious fields; it is to treat the whole vector as sensitive and limit both access and linkage.</p>
+
+    <h3>Attacking the vector database</h3>
+    <p>The store is a service. Common findings include unauthenticated read or write APIs, collection listing, metadata endpoints that reveal document IDs and payloads, weak tenant isolation, backups in object storage, exposed dashboards (Qdrant, Milvus, Chroma, Weaviate), and default credentials in container images. An attacker with read access can download the entire index; with write access they can insert or delete vectors. Both are high-impact, and neither requires a prompt.</p>
+
+    <p>Query interfaces also leak. A nearest-neighbour API that returns distances, IDs or payloads can be used as an oracle to reconstruct records, test membership or map the corpus. Rate limits and result filtering reduce the rate of leakage but do not change the underlying property: if you can query the index, you can learn about its contents.</p>
+
+    <h3>Poisoning the geometry</h3>
+    <p>Embedding-space poisoning inserts vectors that are close to a target query but whose payload contains attacker text. The attacker does not need a document that reads naturally; they need a vector that ranks. If they can call the embedding API, they can optimise a text until its vector lands near the target queries. If they can write vectors directly, they can place them precisely. The defence is the same as corpus poisoning — ingestion control and provenance — plus anomaly detection on insertion rate and vector distribution.</p>
+
+    <div class="formula">
+      <span class="eq">Poison objective: maximize P( rank(<b>v</b><sub>poison</sub>) ≤ <i>k</i> | query ∼ Q<sub>target</sub> ) subject to payload = instruction</span>
+      <span class="where">The attacker trades naturalness for rank. A vector that is obviously anomalous may be caught by review; one that sits in a dense region of the space may be invisible to distribution checks.</span>
+    </div>
+
+    <h3>Privacy engineering that actually helps</h3>
+    <ul>
+      <li><strong>Minimise what is embedded.</strong> Do not embed secrets, credentials, full account numbers or unnecessary personal data. The safest vector is one that was never created.</li>
+      <li><strong>Separate tenants physically or logically.</strong> Per-tenant collections, keys and filters; verify isolation with cross-tenant queries, not with documentation.</li>
+      <li><strong>Restrict raw vector access.</strong> Return IDs and snippets through an authorisation layer; do not let clients enumerate vectors or distances.</li>
+      <li><strong>Add calibrated noise for exposed aggregate queries.</strong> Differential privacy can bound what a single record contributes, at a cost in retrieval quality. It does not protect a vector that is returned verbatim.</li>
+      <li><strong>Encrypt at rest and in transit, and rotate keys.</strong> Encryption does not stop an authorised query, but it limits backup and snapshot exposure.</li>
+      <li><strong>Log and rate-limit queries.</strong> Inversion and membership attacks need volume; per-principal quotas and anomaly detection raise the cost.</li>
+    </ul>
+
+    <p>Be sceptical of "anonymised embeddings". Removing names before embedding helps, but the remaining text often still determines the vector. Testing should include a reconstruction attempt against a sample of the index, a membership test with a known record, and a cross-tenant query. If any of those succeeds, the vector store is a sensitive data store and should be scoped, logged and protected accordingly.</p>
+  </div>

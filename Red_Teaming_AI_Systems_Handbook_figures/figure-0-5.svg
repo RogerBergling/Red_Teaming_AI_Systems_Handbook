@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 690 220" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" width="690" height="220">
+      <defs><marker id="lr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#5b6b7c"/></marker></defs>
+      <g font-size="8.2">
+        <rect x="40" y="34" width="150" height="130" rx="3" fill="#e9eef3" stroke="#64748b"/>
+        <text x="56" y="56" font-weight="bold" fill="#33465a">Frozen base weight</text>
+        <text x="56" y="72" font-size="7.4" fill="#4a5a6b">W &#160; d × k</text>
+        <text x="56" y="100" font-size="7.2" fill="#7b8a9a">no gradients</text>
+        <text x="56" y="114" font-size="7.2" fill="#7b8a9a">unchanged by training</text>
+
+        <rect x="246" y="34" width="72" height="56" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="258" y="55" font-weight="bold" fill="#7a3a08">B</text>
+        <text x="258" y="70" font-size="7.2" fill="#7a5a3a">d × r</text>
+        <text x="258" y="83" font-size="7.2" fill="#7a5a3a">trainable</text>
+
+        <rect x="340" y="34" width="72" height="56" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="352" y="55" font-weight="bold" fill="#7a3a08">A</text>
+        <text x="352" y="70" font-size="7.2" fill="#7a5a3a">r × k</text>
+        <text x="352" y="83" font-size="7.2" fill="#7a5a3a">trainable</text>
+
+        <rect x="246" y="122" width="166" height="42" rx="3" fill="#eef7f5" stroke="#0f766e"/>
+        <text x="260" y="140" font-weight="bold" fill="#0f4f4a">Low-rank update</text>
+        <text x="260" y="154" font-size="7.2" fill="#3d5a5a">(α/r) · B A &#160; d × k</text>
+
+        <rect x="468" y="58" width="150" height="74" rx="3" fill="#fff" stroke="#33465a"/>
+        <text x="484" y="79" font-weight="bold" fill="#1f3244">Effective weight</text>
+        <text x="484" y="96" font-size="8" fill="#33465a">W′ = W + (α/r)BA</text>
+        <text x="484" y="112" font-size="7.2" fill="#6b7a89">merge for serving, or</text>
+        <text x="484" y="124" font-size="7.2" fill="#6b7a89">keep separate to hot-swap</text>
+
+        <path d="M190 90 H242" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <path d="M318 90 H336" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <path d="M412 90 H464" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <path d="M330 90 V118" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <path d="M412 146 H462 V112" stroke="#5b6b7c" fill="none" marker-end="url(#lr)"/>
+        <text x="246" y="188" font-size="7.4" fill="#7b8a9a">Parameters trained: r(d + k) instead of dk. A rank-8 adapter on a</text>
+        <text x="246" y="200" font-size="7.4" fill="#7b8a9a">4096×4096 projection is ~65k parameters rather than ~16.8M.</text>
+      </g>
+    </svg>

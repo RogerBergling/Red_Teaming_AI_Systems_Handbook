@@ -1,0 +1,70 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>AI infrastructure is ordinary infrastructure with some unusual workloads. There are inference servers, GPU nodes, model caches, vector databases, notebooks, experiment trackers, container registries and cloud identities. The interesting failures are rarely exotic model attacks; they are exposed services with no authentication, default configurations, over-broad cloud roles and metadata endpoints that hand out credentials.</p>
+    <p>An inference server is a computer. It loads files, parses requests, may download models from the internet and often exposes an administrative API. If it is reachable from an untrusted network, the question is not whether it can be abused but how. Common findings include unauthenticated model listing and inference, path traversal in model-loading endpoints, server-side request forgery through image or URL parameters, and excessive GPU memory consumption from a single request.</p>
+    <p>Kubernetes adds the usual container risks: privileged pods, host mounts, service-account tokens, exposed dashboards and weak network policy. GPU nodes are expensive, which makes cryptojacking and capacity theft attractive. Model caches and registries are large binary stores that are often writable by CI and readable by everyone. The cloud control plane is the highest-value target: one over-privileged role can turn a model endpoint into access to storage, secrets and other services.</p>
+    <ul>
+      <li><b>Inventory the data plane:</b> inference ports, dashboards, notebooks, vector stores, registries, experiment trackers.</li>
+      <li><b>Assume metadata is reachable</b> until network policy proves otherwise; block link-local and instance metadata from workloads.</li>
+      <li><b>Scope workload identity:</b> one role per workload, short-lived credentials, no shared node identity.</li>
+      <li><b>Treat model downloads as code execution</b> and egress as a security boundary.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>An inference endpoint is a computer, not a chatbot. If you would not expose a database with the same privileges, do not expose the model server.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; the attack chain around the model</span>
+
+    <p>The typical AI infrastructure incident follows a chain: discover an exposed service, obtain model or data access, find a code-execution or credential primitive, move to the cloud control plane, and persist. Each link is ordinary; the AI-specific part is the density of new services and the fact that many are deployed by data scientists rather than platform teams.</p>
+
+    <div class="formula">
+      <span class="eq">Impact ≈ Reachability × Privilege × Data value × Persistence</span>
+      <span class="where">A public endpoint with no credentials but read-only model access is a different finding from an internal endpoint with an instance role. Score the chain, not the port.</span>
+    </div>
+
+    <h3>Common services and their default surfaces</h3>
+    <table>
+      <thead><tr><th style="width:21%">Service</th><th style="width:17%">Typical port</th><th>What to check</th></tr></thead>
+      <tbody>
+        <tr><td>Ollama</td><td>11434</td><td>Unauthenticated model list/pull/delete; model path handling; exposed to LAN</td></tr>
+        <tr><td>vLLM / OpenAI-compatible</td><td>8000</td><td>No auth by default; model list; admin endpoints; prompt logging</td></tr>
+        <tr><td>TGI</td><td>3000</td><td>No auth in many deployments; metrics; model download from arbitrary hub. In maintenance mode since December 2025; Hugging Face recommends vLLM or SGLang for new deployments</td></tr>
+        <tr><td>TorchServe</td><td>8080 / 8081</td><td>Legacy / limited maintenance; management API; model registration; arbitrary archive load. Current versions enable token authorization by default, so verify rather than assuming no auth</td></tr>
+        <tr><td>Triton</td><td>8000 / 8001 / 8002</td><td>HTTP/gRPC/metrics; model repository access; ensemble configuration</td></tr>
+        <tr><td>MLflow</td><td>5000</td><td>Unauthenticated tracking; artefact store access; path traversal</td></tr>
+        <tr><td>Jupyter</td><td>8888</td><td>Token leakage; arbitrary code execution; terminal access</td></tr>
+        <tr><td>Ray dashboard</td><td>8265</td><td>Job submission; cluster access; known RCE patterns</td></tr>
+        <tr><td>Qdrant / Chroma / Milvus</td><td>6333 / 8000 / 19530</td><td>Unauthenticated collections; payload reads; snapshots</td></tr>
+        <tr><td>KServe / Seldon</td><td>80 / 443</td><td>Ingress auth; model download; service account scope</td></tr>
+        <tr><td>Model registries</td><td>443</td><td>Public read; writable CI identity; unsigned artefacts</td></tr>
+      </tbody>
+    </table>
+
+    <p>Ports are hints, not proof. Confirm the service with a benign request, read the response headers and error body, and record the version. Do not run exploit code against a service you do not own, and do not pull or delete models as a "test" unless the rules of engagement explicitly allow it.</p>
+
+    <h3>From inference to execution</h3>
+    <p>Model-loading endpoints are the most valuable primitive. A service that accepts a model name or URL and downloads it may allow path traversal, arbitrary hub references, archive extraction outside the intended directory, or deserialisation of a pickle. Even a well-written loader can be abused if the registry it trusts is writable. The chain is: control the model reference → control the artefact → achieve code execution when it loads → inherit the service's identity.</p>
+
+    <p>SSRF is the other common bridge. Image URLs, audio URLs, webhook callbacks, "import from URL" features and model download links all make the server fetch an attacker-chosen address. On a cloud VM or pod, the instance metadata service is often reachable at a link-local address; a successful SSRF can return temporary credentials. The defence is network policy that blocks link-local and metadata ranges from workloads, plus an egress proxy that only permits approved destinations. Do not rely on the application validating URLs; validate at the network layer.</p>
+
+    <h3>Kubernetes specifics</h3>
+    <ul>
+      <li><strong>Service-account tokens.</strong> Mounted by default in many setups; a compromised pod can call the API server. Disable automounting and use projected, audience-bound tokens.</li>
+      <li><strong>RBAC.</strong> A "model-serving" role with <code>create pods</code> or <code>get secrets</code> is a cluster-level risk. Audit who can create workloads and read secrets.</li>
+      <li><strong>Host paths and privileged mode.</strong> GPU workloads sometimes request host devices or mounts "to make it work". These are node-compromise primitives.</li>
+      <li><strong>Network policy.</strong> Default-deny between namespaces; explicitly allow model downloads, vector-store traffic and telemetry. Do not allow pod-to-metadata.</li>
+      <li><strong>Admission control.</strong> Block privileged pods, host networking, hostPath mounts and unsigned images in AI namespaces.</li>
+      <li><strong>Secrets.</strong> Do not put API keys in environment variables that are visible to every process in the pod; use a secrets store with short-lived credentials.</li>
+    </ul>
+
+    <h3>Cloud AI services</h3>
+    <p>Managed endpoints move the host risk to the provider but leave identity and data risk with the customer. Check whether the endpoint requires authentication, whether private networking is enabled, whether model access is scoped per team, whether prompt logging is on and who can read it, and whether the service can reach other cloud resources through a service role. A managed model with a role that can read every bucket is a data-exfiltration path even if the provider's infrastructure is impeccable.</p>
+
+    <h3>Detection and response</h3>
+    <p>Useful signals include a new model download from an unexpected registry, a process spawning a shell from a serving container, GPU utilisation that does not match request volume, a sudden increase in egress, authentication failures against an inference API, and a workload calling the metadata endpoint. Correlate model-server logs with Kubernetes audit logs and cloud trail events. The response plan should include isolating the workload, rotating the workload identity, checking the model cache for tampering, and verifying that no other pod used the same credential.</p>
+
+    <p>The strongest architectural control is to treat the AI serving plane as a high-risk network zone: no inbound from the internet without a gateway, no outbound except approved registries and data services, no cloud metadata, one identity per workload, and no ability to create or modify other workloads. That design removes most of the chain even when a single service is compromised.</p>
+  </div>

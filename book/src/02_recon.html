@@ -1,0 +1,275 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Module 02</span>
+    <h1 id="m2">Reconnaissance for AI Targets</h1>
+    <p class="dek">Finding the models, corpora, agents and inference services an organisation has deployed — preferably before the organisation has finished inventorying them itself.</p>
+  </div>
+
+  <div class="objectives">
+    <div class="lbl">Learning objectives</div>
+    <ul>
+      <li>Build a passive-first reconnaissance plan for an AI-enabled enterprise.</li>
+      <li>Recognise the network and application fingerprints of common inference servers, vector databases and agent platforms.</li>
+      <li>Infer model family and version from behaviour, headers and error surfaces, with appropriate confidence.</li>
+      <li>Map agent capabilities, tool endpoints, OAuth scopes and inter-agent links.</li>
+      <li>Produce an asset inventory that feeds threat modelling and attack planning.</li>
+      <li>Describe the telemetry that reconnaissance generates and how defenders detect it.</li>
+    </ul>
+  </div>
+
+  <p class="lede">Most organisations do not have a complete inventory of their AI systems. Models are stood up by data science teams on unmanaged cloud accounts, copilots are enabled by business units, vector databases are deployed with default settings, and agents are granted OAuth scopes that nobody reviews. Reconnaissance is therefore not only an attacker activity; it is often the first accurate map of the environment that anyone has produced.</p>
+
+  <p>The goal of this phase is a <strong>target model</strong>: a structured inventory of AI assets, their owners, their data, their identities and their exposure. It answers four questions. What AI exists? Where does it run? What can it reach? Who can reach it? Everything later in the course — agent attacks, RAG poisoning, infrastructure exploitation, the capstone — is selected from this inventory rather than guessed.</p>
+
+  <h2 id="m2-discipline">2.1 Reconnaissance discipline</h2>
+
+  <p>Reconnaissance is graded by intrusion detection risk. A mature engagement moves from passive to semi-passive to active, and only escalates when the previous level has produced a hypothesis worth testing.</p>
+
+  <table>
+    <thead><tr><th style="width:16%">Level</th><th style="width:38%">Activities</th><th style="width:22%">Visibility to defender</th><th>Use when</th></tr></thead>
+    <tbody>
+      <tr><td><b>Passive</b></td><td>Public registries, certificate transparency, job posts, documentation, code hosting, model hubs, package indexes, breach data, search engines</td><td>None from the target's infrastructure</td><td>Always first; no authorisation risk beyond data handling</td></tr>
+      <tr><td><b>Semi-passive</b></td><td>DNS resolution, TLS handshake and certificate inspection, unauthenticated HTTP GETs to public pages, robots.txt, error pages</td><td>Low; appears in web logs and CDN telemetry</td><td>Confirming ownership and technology; usually permitted in scope</td></tr>
+      <tr><td><b>Active</b></td><td>Port scanning, path enumeration, API probing, model fingerprint queries, agent card retrieval, auth boundary testing</td><td>Moderate to high; WAF, IDS, rate limits</td><td>After scope confirmation and a detection baseline</td></tr>
+      <tr><td><b>Authenticated</b></td><td>Using issued test accounts, API keys or tenant access to enumerate from inside</td><td>High but attributable to a known identity</td><td>When the engagement provides accounts; best coverage of agent and RAG surfaces</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box warn">
+    <span class="lbl">Scope discipline</span>
+    <p>Subdomain enumeration and cloud-range scanning routinely cross into third-party infrastructure. A model API hosted by a provider is not in scope because the customer uses it. Before active scanning, map every discovered hostname to an owner and confirm it is either owned by the target or explicitly included. Keep a written record of the decision for each host.</p>
+  </div>
+
+  <h2 id="m2-passive">2.2 Passive reconnaissance: the organisation tells you what it built</h2>
+
+  <h3>Corporate and procurement signals</h3>
+  <p>AI deployments leave a paper trail. Press releases and earnings calls name vendors and initiatives. Trust centres and subprocessor lists disclose model providers and AI SaaS. SOC 2 and ISO reports, when available under NDA, describe the AI services in scope and sometimes the control gaps. Privacy policies enumerate data categories and processing purposes, which is often the clearest public statement that a company processes prompts and conversation logs. Procurement portals and tender documents describe planned systems months before deployment.</p>
+
+  <h3>People and hiring signals</h3>
+  <p>Job postings are an architecture diagram in prose. A role asking for "LangChain, Pinecone, Azure OpenAI and Copilot Studio" tells you the stack. A data engineer role mentioning "Kubeflow on EKS with KServe" tells you the serving platform. Conference talks, meetup recordings, engineering blogs and GitHub profiles reveal framework choices, internal service names and sometimes architecture diagrams. Recruiter messages and LinkedIn "skills" sections are weak signals individually but useful for corroboration.</p>
+
+  <h3>Code, packages and configuration leaks</h3>
+  <p>Public repositories are the richest passive source. Look for: committed <code>.env</code> files and notebook outputs containing API keys; internal endpoint names in SDK configuration; prompt templates checked in as YAML or JSON; evaluation datasets containing customer samples; infrastructure-as-code declaring model endpoints, bucket names and IAM roles; CI logs that print environment variables. Search beyond the organisation's own repositories: forks, mirrors, vendor integration examples and public Postman workspaces often contain customer-specific configuration.</p>
+
+  <p>Package registries are equally revealing. An internal package published to a public registry, even as a placeholder, exposes naming conventions, dependency versions and sometimes maintainer identities. Dependency confusion and typosquatting opportunities live here, which is why Module 8 treats registries as an attack surface rather than a recon convenience.</p>
+
+  <h3>Model and dataset hubs</h3>
+  <p>Public model hubs expose organisation accounts, model cards, dataset cards, revision history, download counts and sometimes training data descriptions. A corporate account with a private-looking model name is a strong signal of an internal fine-tune. The same applies to dataset repositories: a "customer-support-classification" dataset with an internal company prefix tells you both the use case and the data sensitivity. Model cards occasionally name the base model, the training infrastructure and the evaluation sets — useful for supply-chain planning.</p>
+
+  <h3>Documentation and status pages</h3>
+  <p>Developer documentation reveals API shapes, error codes, rate limits, authentication schemes and beta features that are not yet announced. Changelogs reveal model migrations ("gpt-4-0613 to gpt-4o-2024-08-06") and deprecation dates, which matter for reproducing behaviour. Status pages reveal regional endpoints, incident history and maintenance windows — useful for timing active testing and for distinguishing your traffic from an outage.</p>
+
+  <h2 id="m2-fingerprint">2.3 Fingerprinting AI services</h2>
+
+  <p>AI infrastructure is unusually fingerprintable because it is young, opinionated and often deployed with defaults. The table below lists services commonly found in AI environments, their usual ports and the paths that identify them. Defaults are not vulnerabilities in themselves; unauthenticated defaults are.</p>
+
+  <table class="compact">
+    <thead><tr><th style="width:18%">Service</th><th style="width:14%">Default port</th><th style="width:30%">Identification</th><th>What exposure means</th></tr></thead>
+    <tbody>
+      <tr><td>Ollama</td><td>11434</td><td><code>GET /api/tags</code>, <code>GET /</code> ("Ollama is running")</td><td>Model listing, pulls, inference, model deletion</td></tr>
+      <tr><td>vLLM</td><td>8000</td><td><code>/v1/models</code>, <code>/health</code>, OpenAI-compatible schema</td><td>Inference, model enumeration, possible adapter loading</td></tr>
+      <tr><td>Text Generation Inference</td><td>3000</td><td><code>/info</code>, <code>/health</code>, <code>/generate</code></td><td>Inference, model metadata, tokenizer details. TGI has been in maintenance mode since December 2025; current Hugging Face guidance points to vLLM or SGLang for new deployments</td></tr>
+      <tr><td>Triton Inference Server</td><td>8000/8001/8002</td><td>HTTP, gRPC and metrics ports; <code>/v2/health/ready</code></td><td>Model repository enumeration, inference, metrics leakage</td></tr>
+      <tr><td>TorchServe</td><td>8080/8081</td><td><code>/ping</code>, <code>/models</code>, management API on 8081</td><td>Model registration, scale-up, historical path traversal issues. TorchServe is legacy / limited maintenance and current versions enable token authorization by default, so do not assume an exposed instance is unauthenticated</td></tr>
+      <tr><td>MLflow</td><td>5000</td><td><code>/api/2.0/mlflow/…</code>, UI at <code>/</code></td><td>Experiment data, artefacts, model registry, possible file read</td></tr>
+      <tr><td>Jupyter</td><td>8888</td><td><code>/tree</code>, <code>/api</code>, login page with token field</td><td>Notebook execution, credential access, cluster pivot</td></tr>
+      <tr><td>Ray dashboard</td><td>8265</td><td><code>/</code> dashboard, <code>/api/jobs</code></td><td>Job submission, cluster control (historically unauthenticated)</td></tr>
+      <tr><td>Qdrant</td><td>6333</td><td><code>/collections</code>, <code>/dashboard</code></td><td>Collection listing, vector search, payload extraction</td></tr>
+      <tr><td>Weaviate</td><td>8080</td><td><code>/v1/meta</code>, <code>/v1/schema</code></td><td>Schema and object read/write</td></tr>
+      <tr><td>Milvus</td><td>19530</td><td>gRPC; metrics on 9091</td><td>Collection access, vector and metadata extraction</td></tr>
+      <tr><td>Chroma</td><td>8000</td><td><code>/api/v1/heartbeat</code>, <code>/api/v1/collections</code></td><td>Collection and document access</td></tr>
+      <tr><td>Open WebUI</td><td>8080</td><td><code>/api/config</code>, distinctive UI assets</td><td>User accounts, chat history, connected model keys</td></tr>
+      <tr><td>Flowise / n8n / Dify</td><td>3000 / 5678 / 5001</td><td>Framework-specific UI and API paths</td><td>Workflow definitions, embedded credentials, code nodes</td></tr>
+      <tr><td>Gradio / Streamlit</td><td>7860 / 8501</td><td>Framework assets, websocket endpoints</td><td>Direct access to demo apps and their backends</td></tr>
+      <tr><td>Langfuse / Phoenix</td><td>3000 / 6006</td><td>Observability UI, trace APIs</td><td>Full prompt and response history, often unredacted</td></tr>
+      <tr><td>LiteLLM proxy</td><td>4000</td><td><code>/health</code>, <code>/v1/models</code>, <code>/model/info</code></td><td>Provider keys, routing config, model inventory</td></tr>
+    </tbody>
+  </table>
+
+  <p>Application-layer fingerprints matter as much as ports. Look at response headers (<code>server</code>, <code>x-powered-by</code>, provider-specific request IDs), cookie names, error envelopes, streaming behaviour (server-sent events with <code>data: {"choices":[…]}</code> versus newline-delimited JSON), token accounting fields, rate-limit headers and the shape of validation errors. A JSON error that says <code>model_not_found</code> with a list of accepted models is a gift; so is an OpenAPI document served at <code>/openapi.json</code>.</p>
+
+  <h3>Discovery documents</h3>
+  <p>Three well-known paths deserve specific attention because they advertise capability rather than just presence:</p>
+  <ul>
+    <li><code>/.well-known/ai-plugin.json</code> — the older plugin manifest, still found on assistant integrations; describes the plugin, its auth scheme and its OpenAPI spec location.</li>
+    <li><code>/.well-known/agent-card.json</code> and its predecessor <code>/.well-known/agent.json</code> — the A2A agent card; lists skills, endpoints, capabilities, supported transports and security schemes. Treated in depth in Module 4.</li>
+    <li><code>/openapi.json</code>, <code>/swagger.json</code>, <code>/docs</code> — tool and API schemas; the closest thing to a map of what an agent can do.</li>
+  </ul>
+
+  <div class="box note">
+    <span class="lbl">Field note — the inventory gap is the finding</span>
+    <p>When a customer says "we have three AI systems", treat that as a hypothesis. In practice, business units enable copilots, data scientists deploy notebooks with public endpoints, and marketing embeds a chatbot vendor. Discovering shadow AI is a legitimate and valuable engagement outcome even when no vulnerability is exploited. Document how you found each asset so the customer can build a discovery capability of their own.</p>
+  </div>
+
+  <h2 id="m2-models">2.4 Identifying models and providers</h2>
+
+  <p>Knowing the model matters less than knowing its <em>capabilities and constraints</em>, but it shapes payload design, context limits and the plausibility of certain attacks. Attribution is probabilistic; report confidence, not certainty.</p>
+
+  <table>
+    <thead><tr><th style="width:24%">Signal</th><th style="width:40%">Observation</th><th>Interpretation</th></tr></thead>
+    <tbody>
+      <tr><td>Response headers</td><td>Provider request IDs, organisation headers, rate-limit naming conventions</td><td>Direct provider or gateway; sometimes region and tier</td></tr>
+      <tr><td>Error envelopes</td><td>Field names, wording, HTTP status choices</td><td>OpenAI-compatible server (vLLM, LiteLLM, Ollama) versus native API</td></tr>
+      <tr><td>Tokenisation artefacts</td><td>Behaviour on rare Unicode, emoji, whitespace and long numbers</td><td>Tokenizer family; weak evidence of model family</td></tr>
+      <tr><td>Knowledge boundary</td><td>Questions about dated events; gradual degradation near the cutoff</td><td>Training cutoff window, not exact version</td></tr>
+      <tr><td>Refusal style</td><td>Wording, structure, willingness to discuss policy</td><td>Provider alignment tuning; useful for guardrail mapping</td></tr>
+      <tr><td>Context limit</td><td>Binary search on accepted input length; truncation behaviour</td><td>Deployed context window, which may be lower than the model's maximum</td></tr>
+      <tr><td>Latency profile</td><td>Time to first token, tokens per second, variance</td><td>Hosted versus self-hosted; GPU class; batching behaviour</td></tr>
+      <tr><td>Log probabilities</td><td>Availability of <code>logprobs</code> and top-k alternatives</td><td>Open-weight or permissive API; enables stronger fingerprinting and attacks</td></tr>
+      <tr><td>Model listing</td><td><code>/v1/models</code>, <code>/api/tags</code></td><td>Exact model identifiers when exposed</td></tr>
+    </tbody>
+  </table>
+
+  <p>Behavioural fingerprinting has a poor signal-to-noise ratio when used aggressively. Two models of the same family and size often produce indistinguishable outputs, and system prompts dominate style. Use fingerprinting to answer practical questions — "is this likely a 7B open-weight model I can replicate locally?" — rather than to claim a precise version in a report. When exact identification matters, corroborate with an exposed model list, a version header or a customer confirmation.</p>
+
+  <h2 id="m2-graph">2.5 Mapping agents, tools and trust</h2>
+
+  <p>For agentic systems, the interesting map is not the network topology but the <strong>capability graph</strong>: which agent can call which tool, with which identity, on whose behalf, and what that tool can reach. Build it from four sources.</p>
+
+  <p><strong>Tool schemas.</strong> OpenAPI documents, MCP tool listings, function-calling definitions and plugin manifests describe parameters, enums and descriptions. Descriptions are themselves attack surface: they are instructions to the model, and they are frequently written by developers who did not consider that a third party might control them.</p>
+
+  <p><strong>Identity and consent.</strong> OAuth grants reveal scope. A copilot with <code>Mail.ReadWrite</code>, <code>Files.ReadWrite.All</code> and <code>Sites.FullControl.All</code> has a vastly larger blast radius than its user interface suggests. Look for consent records, enterprise applications, service principals, managed identities and API keys stored in automation platforms. Delegated versus application permissions is a critical distinction: application permissions act as the service, often across the whole tenant.</p>
+
+  <p><strong>Agent registries and cards.</strong> Multi-agent platforms increasingly publish agent cards or registry entries listing skills, endpoints and authentication. These are reconnaissance gold: they describe not just that an agent exists but what it claims to do and how to talk to it.</p>
+
+  <p><strong>Data flows.</strong> Follow the content. Which connectors ingest email, chat, drive, wiki and ticketing? Where are embeddings stored? Which caches hold retrieved context? Which logs retain prompts? The data-flow map tells you where a poisoned document can enter and where its effects will be observed.</p>
+
+  <figure>
+    <svg viewBox="0 0 700 230" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs><marker id="a2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7b8a9a"/></marker></defs>
+      <g font-size="8.4">
+        <rect x="12" y="18" width="140" height="46" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="22" y="34" font-weight="bold" fill="#33465a">Public sources</text>
+        <text x="22" y="46" font-size="7.4" fill="#5b6b7c">docs · job posts · repos</text>
+        <text x="22" y="56" font-size="7.4" fill="#5b6b7c">hubs · registries · CT logs</text>
+
+        <rect x="12" y="86" width="140" height="46" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="22" y="102" font-weight="bold" fill="#33465a">Network surface</text>
+        <text x="22" y="114" font-size="7.4" fill="#5b6b7c">DNS · TLS · ports · paths</text>
+        <text x="22" y="124" font-size="7.4" fill="#5b6b7c">headers · errors · latency</text>
+
+        <rect x="12" y="154" width="140" height="46" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="22" y="170" font-weight="bold" fill="#33465a">Identity surface</text>
+        <text x="22" y="182" font-size="7.4" fill="#5b6b7c">OAuth grants · agents</text>
+        <text x="22" y="192" font-size="7.4" fill="#5b6b7c">service accounts · keys</text>
+
+        <path d="M152 41 H210 M152 109 H210 M152 177 H210" stroke="#7b8a9a" stroke-width="0.8" marker-end="url(#a2)"/>
+
+        <rect x="215" y="60" width="150" height="100" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="227" y="80" font-weight="bold" fill="#0f4f4a">Target model</text>
+        <text x="227" y="96" font-size="7.4" fill="#3d5a5a">asset register</text>
+        <text x="227" y="108" font-size="7.4" fill="#3d5a5a">capability graph</text>
+        <text x="227" y="120" font-size="7.4" fill="#3d5a5a">data-flow map</text>
+        <text x="227" y="132" font-size="7.4" fill="#3d5a5a">exposure ranking</text>
+        <text x="227" y="144" font-size="7.4" fill="#3d5a5a">confidence notes</text>
+
+        <path d="M365 110 H420" stroke="#7b8a9a" stroke-width="0.8" marker-end="url(#a2)"/>
+
+        <rect x="425" y="30" width="120" height="40" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="435" y="47" font-weight="bold" fill="#7a3a08">Hypotheses</text>
+        <text x="435" y="59" font-size="7.4" fill="#7a5a3a">what to test, where</text>
+
+        <rect x="425" y="90" width="120" height="40" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="435" y="107" font-weight="bold" fill="#7a3a08">Attack paths</text>
+        <text x="435" y="119" font-size="7.4" fill="#7a5a3a">entry → capability → impact</text>
+
+        <rect x="425" y="150" width="120" height="40" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="435" y="167" font-weight="bold" fill="#7a3a08">Detection tests</text>
+        <text x="435" y="179" font-size="7.4" fill="#7a5a3a">what should fire</text>
+
+        <path d="M570 50 L600 50 L600 110 L570 110" fill="none" stroke="#7b8a9a" stroke-width="0.8" marker-end="url(#a2)"/>
+        <path d="M570 170 L600 170 L600 110" fill="none" stroke="#7b8a9a" stroke-width="0.8"/>
+        <text x="606" y="104" font-size="7.2" fill="#5b6b7c">engagement</text>
+        <text x="606" y="114" font-size="7.2" fill="#5b6b7c">plan</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 2.1 — From raw signals to a testable target model.</b> Reconnaissance converges on the same artefact from three directions; the inventory is only useful when it produces ranked hypotheses and a detection expectation.</figcaption>
+  </figure>
+
+  <h2 id="m2-quiet">2.6 Reconnaissance without alerting defenders</h2>
+
+  <p>Detection is asymmetric: the defender sees all traffic to their estate, while the attacker sees only what the estate returns. Four practices reduce exposure without eliminating it.</p>
+
+  <ul>
+    <li><strong>Prefer sources the target does not own.</strong> Third-party registries, certificate transparency and search caches do not generate target-side logs. Exhaust them first.</li>
+    <li><strong>Separate identities.</strong> Never reconnoitre from an IP address or account that will later be used for exploitation. Use dedicated infrastructure with a documented, benign user agent and a reverse DNS record that identifies the tester if the engagement allows it. Attribution after the fact is easier than most operators assume.</li>
+    <li><strong>Pace and randomise.</strong> A burst of 500 requests to <code>/v1/models</code> across 200 hosts is indistinguishable from a scanner and will be blocked. Slow sequential requests, jittered intervals and a small working set look like normal API traffic.</li>
+    <li><strong>Blend with legitimate patterns.</strong> If the application is a public chatbot, using it as a user would is the least anomalous way to learn about it. If the API requires a key, an issued test key is better than probing the auth boundary.</li>
+  </ul>
+
+  <p>WAF evasion technique is out of scope for this handbook; the point is that <em>reconnaissance should not require it</em> in a well-scoped engagement. If every request is blocked, that is itself a finding about the control, not a challenge to defeat.</p>
+
+  <h2 id="m2-inventory">2.7 The asset inventory</h2>
+
+  <p>The deliverable of this module is a register with enough structure to drive later work. A practical schema:</p>
+
+  <table class="compact">
+    <thead><tr><th style="width:20%">Field</th><th style="width:44%">Content</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td><code>asset_id</code></td><td>Stable identifier, e.g. <code>AI-014</code></td><td>Cross-references findings, tests and remediation</td></tr>
+      <tr><td><code>type</code></td><td>model, endpoint, agent, tool, index, dataset, pipeline, dashboard</td><td>Determines applicable techniques</td></tr>
+      <tr><td><code>provider</code></td><td>Vendor, internal team, open-weight source, unknown</td><td>Scope and terms-of-service boundaries</td></tr>
+      <tr><td><code>version</code></td><td>Model ID, revision hash, image digest, API version</td><td>Reproducibility and patch tracking</td></tr>
+      <tr><td><code>exposure</code></td><td>Internet, partner, employee, tenant, internal-only</td><td>Threat actor reachability</td></tr>
+      <tr><td><code>auth</code></td><td>None, API key, OAuth user, OAuth app, mTLS, workload identity</td><td>Initial access and privilege escalation options</td></tr>
+      <tr><td><code>data_classes</code></td><td>Public, internal, confidential, personal, regulated</td><td>Impact and disclosure obligations</td></tr>
+      <tr><td><code>capabilities</code></td><td>Read/write tools, network egress, code execution, payments</td><td>Blast radius</td></tr>
+      <tr><td><code>owner</code></td><td>Team and named contact</td><td>Authorisation and remediation</td></tr>
+      <tr><td><code>evidence</code></td><td>URL, screenshot hash, log reference</td><td>Report credibility</td></tr>
+      <tr><td><code>confidence</code></td><td>Confirmed, probable, suspected</td><td>Prevents overclaiming</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m2-detect">2.8 Detecting reconnaissance</h2>
+
+  <table>
+    <thead><tr><th style="width:28%">Signal</th><th style="width:36%">Example</th><th>Analytic idea</th></tr></thead>
+    <tbody>
+      <tr><td>Enumeration bursts</td><td>Sequential requests to <code>/v1/models</code>, <code>/api/tags</code>, <code>/collections</code></td><td>Count distinct discovery paths per source per 10 minutes; alert above baseline</td></tr>
+      <tr><td>404 clustering</td><td>Many non-existent paths from one ASN</td><td>Entropy of requested paths; ratio of 404s to successful requests</td></tr>
+      <tr><td>Agent card retrieval</td><td><code>/.well-known/agent-card.json</code> from an unauthenticated source</td><td>Alert on any retrieval outside the platform's own registry traffic</td></tr>
+      <tr><td>Model fingerprinting</td><td>Repeated long prompts with minor Unicode variation</td><td>Similarity clustering of prompt prefixes; token-count anomalies</td></tr>
+      <tr><td>Credential probing</td><td>Many API keys against one endpoint, or one key across many tenants</td><td>Auth failure rate by key and source; impossible-travel style checks</td></tr>
+      <tr><td>Scraper behaviour</td><td>Headless browser signatures, unusual TLS fingerprints</td><td>JA3/JA4 plus rate and path features</td></tr>
+      <tr><td>Honeytokens</td><td>A fake model endpoint or agent card that no legitimate client calls</td><td>Any request is high-confidence malicious</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box defender">
+    <span class="lbl">Defender's view — make the inventory a control</span>
+    <p>The best defence against unknown AI assets is a discovery pipeline: cloud asset inventories tagged for AI services, egress logs for model provider domains, Kubernetes admission policies that label inference workloads, and a requirement that every model endpoint be registered before it can obtain credentials. Reconnaissance findings should feed that pipeline, not just a report appendix.</p>
+  </div>
+
+  <h2 id="m2-lab">2.9 Lab 2 — Map an enterprise you have never seen</h2>
+
+  <div class="box lab">
+    <span class="lbl">Lab brief &middot; 4 hours</span>
+    <p><strong>Objective.</strong> Produce a target model for the lab enterprise and a prioritised list of five hypotheses.</p>
+    <p><strong>Part A — passive.</strong> Given a fictional company domain and a set of synthetic public artefacts (job posts, a documentation site, two repositories, a model hub account), build an inventory using only passive sources. Record the evidence and a confidence level for each asset. Do not resolve the domain yet.</p>
+    <p><strong>Part B — semi-passive.</strong> Resolve the domain, inspect certificates, retrieve unauthenticated pages, and identify the AI services in the lab network. The lab exposes Ollama, vLLM, Qdrant, MLflow and an agent service; at least one is not mentioned in the public artefacts.</p>
+    <p><strong>Part C — synthesis.</strong> Draw the capability graph. Identify the three assets with the highest combination of exposure and authority. For each, write a hypothesis in the form: <em>if</em> [weakness] <em>then</em> [attacker action] <em>resulting in</em> [impact], <em>observable as</em> [telemetry].</p>
+    <p><strong>Deliverable.</strong> A register (CSV or spreadsheet) with the schema in §2.7, plus a one-page exposure ranking with rationale.</p>
+  </div>
+
+  <h2 id="m2-takeaways">2.10 Key takeaways</h2>
+  <ul>
+    <li>Passive reconnaissance can identify a substantial part of the externally visible AI stack; active scanning should confirm and fill gaps, not be the only discovery method. Internal agents, shadow AI and private model gateways may leave no external footprint at all.</li>
+    <li>AI services are fingerprintable through default ports, discovery documents, error envelopes and streaming behaviour.</li>
+    <li>Model attribution is probabilistic. Report confidence and corroborate before naming a version.</li>
+    <li>For agents, the capability graph — identity, tool, data, approval — matters more than the network diagram.</li>
+    <li>Shadow AI is a finding. If the customer cannot produce the inventory, that is the first control gap to report.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Why is a public model hub account a stronger recon signal than a job posting?</li>
+      <li>You find <code>/v1/models</code> open on a host. What three questions determine whether this is a finding or expected behaviour?</li>
+      <li>How would you distinguish an OpenAI-compatible self-hosted server from the provider's native API using only responses?</li>
+      <li>What is the difference between delegated and application permissions in an OAuth-based copilot, and why does it change blast radius?</li>
+      <li>Name four log sources that would reveal active reconnaissance against an inference service.</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Module 03 — Attacking AI Agents</div>
+</section>

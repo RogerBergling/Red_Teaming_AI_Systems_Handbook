@@ -1,0 +1,61 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>Reconnaissance for AI targets is mostly ordinary reconnaissance with a few new objects. You are looking for models, inference endpoints, agent registrations, retrieval corpora, vector databases, tool servers, SDKs in web bundles and the identities that connect them. The goal is an inventory precise enough to attack and defend: what exists, who owns it, what version it is, what data it can reach and what it is allowed to do.</p>
+    <p>Start passively. Job adverts mention model vendors; documentation portals describe agent platforms; JavaScript bundles reveal API paths and feature flags; certificate transparency and DNS reveal staging environments; public model hubs show organisation names and adapter repositories. Only then move to active probing, slowly, with a written rate limit and an agreed source address, because AI endpoints are often billed per token and monitored for abuse.</p>
+    <p>Fingerprinting is the craft. A model's tokenizer, error strings, response headers, streaming behaviour, context limit and refusal style form a signature. The same prompt sent to two providers can produce different token counts, different latency profiles and different JSON envelopes. Record those observations as hypotheses with confidence, not as facts. A model card is a claim; a probe is evidence.</p>
+    <ul>
+      <li><b>Find:</b> inference APIs, gateways, agent cards, MCP registries, vector stores, notebooks, model registries.</li>
+      <li><b>Identify:</b> model family and version, tokenizer, context limit, hosting stack, provider.</li>
+      <li><b>Map:</b> which application uses which model, corpus, tool and identity.</li>
+      <li><b>Record:</b> source, timestamp, confidence, and whether the observation was passive or active.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>The model is rarely the way in. The integration — an unauthenticated gateway, a shared API key, a staging agent with production data — usually is.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; turning weak signals into a defensible inventory</span>
+
+    <p>A fingerprint is rarely a single decisive observation. It is a set of weak signals combined under uncertainty. Treat identification as Bayesian updating: start with a prior over plausible model families, then multiply by the likelihood of each observation under each hypothesis.</p>
+
+    <div class="formula">
+      <span class="eq">Posterior odds(H<sub>1</sub>:H<sub>2</sub>) = Prior odds(H<sub>1</sub>:H<sub>2</sub>) × Π<sub><i>i</i></sub> [ P(obs<sub><i>i</i></sub> | H<sub>1</sub>) / P(obs<sub><i>i</i></sub> | H<sub>2</sub>) ]</span>
+      <span class="where">Each probe contributes a likelihood ratio. A response header naming a serving engine is strong; a refusal phrase is weak because many models share it. Do not multiply signals that are not conditionally independent — two observations from the same header are one observation.</span>
+    </div>
+
+    <h3>Passive signals worth collecting first</h3>
+    <ul>
+      <li><strong>Web bundles and source maps.</strong> Look for SDK imports, base URLs, model names, feature flags, prompt templates, tool schemas and environment names. Client-side code frequently reveals more than the documentation.</li>
+      <li><strong>Public documentation and status pages.</strong> Model versions, rate limits, regional endpoints, deprecation notices and incident history narrow the hypothesis space.</li>
+      <li><strong>DNS, certificates and cloud storage.</strong> Staging hostnames, object-store buckets, inference subdomains and expired certificates are common. Certificate transparency is passive and cheap.</li>
+      <li><strong>Repositories and hubs.</strong> Organisation accounts on model hubs, adapter repositories, dataset cards, container registries and CI configuration reveal the stack and sometimes credentials.</li>
+      <li><strong>Job adverts and conference talks.</strong> "Experience with vLLM, Qdrant, LangGraph and Azure OpenAI" is an architecture hint, not proof.</li>
+      <li><strong>Error surfaces.</strong> A malformed request can return a framework name, a version string, a traceback or a stack trace. Capture it; do not fuzz aggressively to get it.</li>
+    </ul>
+
+    <h3>Active probes and what each one can tell you</h3>
+    <table>
+      <thead><tr><th style="width:25%">Probe</th><th style="width:39%">Observation</th><th>Inference</th></tr></thead>
+      <tbody>
+        <tr><td><b>Token-count probe</b></td><td>Send several fixed strings; compare reported usage or billing units</td><td>Vocabulary size and likely tokenizer family; proxy rewriting</td></tr>
+        <tr><td><b>Context-limit probe</b></td><td>Increase input until rejection; note exact boundary and error text</td><td>Advertised vs enforced window; gateway truncation</td></tr>
+        <tr><td><b>Logprob probe</b></td><td>Request token log-probabilities; compare distributions on a fixed prompt</td><td>Whether the endpoint exposes raw model scores; provider identity</td></tr>
+        <tr><td><b>Streaming probe</b></td><td>Measure time-to-first-token and inter-token cadence</td><td>Serving engine, batching, prefill vs decode behaviour</td></tr>
+        <tr><td><b>Header and error probe</b></td><td>Inspect <code>server</code>, <code>via</code>, <code>x-request-id</code>, JSON error envelopes</td><td>Gateway, reverse proxy, framework, cloud region</td></tr>
+        <tr><td><b>Model-list probe</b></td><td>Call documented model-list endpoints; compare IDs and aliases</td><td>Provider, available models, alias mapping, version drift</td></tr>
+        <tr><td><b>Template probe</b></td><td>Send role markers and observe whether they are echoed or interpreted</td><td>Chat template, escaping, instruction hierarchy</td></tr>
+      </tbody>
+    </table>
+
+    <p>Token-count probes deserve special care because they are cheap, legitimate-looking and highly informative. Send strings whose token counts differ sharply between candidate tokenizers — rare Unicode, long identifiers, code, whitespace runs, emoji sequences — and compare the reported usage to predictions. A few well-chosen strings can separate GPT-2-style byte BPE from a SentencePiece vocabulary, and can reveal whether a gateway is inserting hidden text before the model sees the prompt. If usage is not reported, latency and truncation behaviour are weaker substitutes.</p>
+
+    <h3>The inventory schema</h3>
+    <p>An inventory that cannot be joined to logs is a spreadsheet, not an asset register. At minimum, record: asset ID; type (model, endpoint, agent, corpus, vector store, tool, notebook, registry); owner; environment; network location; authentication method; identity and scopes; model family and version; tokenizer; context limit; data classes reachable; upstream and downstream dependencies; logging coverage; evidence source; confidence; last verified. The same IDs should appear in the threat model, the test plan and the detection rules, or the engagement will spend its last week reconciling names.</p>
+
+    <h3>Staying quiet</h3>
+    <p>AI endpoints are unusually noisy to their owners: every request costs money, consumes GPU capacity and may be logged with prompts. Active reconnaissance can therefore trigger cost alerts, abuse controls or an incident response before the engagement has produced a finding. Agree a request budget, a source address and a contact before probing. Prefer one high-information request to twenty low-information ones. Use canary strings that identify your traffic. Avoid payloads that look like real abuse, and never test a provider's infrastructure beyond the customer's own configuration.</p>
+
+    <p>Keep a reconnaissance log with timestamps, source IPs, endpoints, request IDs and the purpose of each probe. If the defender later asks "was that you?", the log is the difference between an authorised test and an incident. The same log feeds the detection module: every probe you sent is a behaviour the blue team should be able to see.</p>
+  </div>

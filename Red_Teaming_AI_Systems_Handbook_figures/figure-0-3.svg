@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 690 300" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" width="690" height="300">
+      <defs><marker id="nn" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#8b98a6"/></marker></defs>
+      <g font-size="8">
+        <text x="22" y="28" font-size="8.4" font-weight="bold" fill="#33465a">Input</text>
+        <text x="140" y="28" font-size="8.4" font-weight="bold" fill="#33465a">Hidden layer 1</text>
+        <text x="320" y="28" font-size="8.4" font-weight="bold" fill="#33465a">Hidden layer 2</text>
+        <text x="500" y="28" font-size="8.4" font-weight="bold" fill="#33465a">Output</text>
+
+        <g fill="#eef7f5" stroke="#0f766e">
+          <circle cx="52" cy="80" r="13"/><circle cx="52" cy="130" r="13"/><circle cx="52" cy="180" r="13"/><circle cx="52" cy="230" r="13"/>
+          <circle cx="190" cy="65" r="13"/><circle cx="190" cy="115" r="13"/><circle cx="190" cy="165" r="13"/><circle cx="190" cy="215" r="13"/><circle cx="190" cy="255" r="13"/>
+          <circle cx="370" cy="80" r="13"/><circle cx="370" cy="140" r="13"/><circle cx="370" cy="200" r="13"/><circle cx="370" cy="250" r="13"/>
+          <circle cx="540" cy="125" r="13"/><circle cx="540" cy="195" r="13"/>
+        </g>
+        <g stroke="#b9c4ce" stroke-width="0.55" fill="none" opacity="0.9">
+          <path d="M65 80 L177 65 M65 80 L177 115 M65 80 L177 165 M65 80 L177 215 M65 80 L177 255"/>
+          <path d="M65 130 L177 65 M65 130 L177 115 M65 130 L177 165 M65 130 L177 215 M65 130 L177 255"/>
+          <path d="M65 180 L177 65 M65 180 L177 115 M65 180 L177 165 M65 180 L177 215 M65 180 L177 255"/>
+          <path d="M65 230 L177 65 M65 230 L177 115 M65 230 L177 165 M65 230 L177 215 M65 230 L177 255"/>
+          <path d="M203 65 L357 80 M203 65 L357 140 M203 65 L357 200 M203 65 L357 250"/>
+          <path d="M203 115 L357 80 M203 115 L357 140 M203 115 L357 200 M203 115 L357 250"/>
+          <path d="M203 165 L357 80 M203 165 L357 140 M203 165 L357 200 M203 165 L357 250"/>
+          <path d="M203 215 L357 80 M203 215 L357 140 M203 215 L357 200 M203 215 L357 250"/>
+          <path d="M203 255 L357 80 M203 255 L357 140 M203 255 L357 200 M203 255 L357 250"/>
+          <path d="M383 80 L527 125 M383 80 L527 195 M383 140 L527 125 M383 140 L527 195 M383 200 L527 125 M383 200 L527 195 M383 250 L527 125 M383 250 L527 195"/>
+        </g>
+        <g fill="#33465a" font-size="7.2" text-anchor="middle">
+          <text x="52" y="83">x₁</text><text x="52" y="133">x₂</text><text x="52" y="183">x₃</text><text x="52" y="233">x₄</text>
+          <text x="190" y="68">h</text><text x="190" y="118">h</text><text x="190" y="168">h</text><text x="190" y="218">h</text><text x="190" y="258">h</text>
+          <text x="370" y="83">h</text><text x="370" y="143">h</text><text x="370" y="203">h</text><text x="370" y="253">h</text>
+          <text x="540" y="128">ŷ₁</text><text x="540" y="198">ŷ₂</text>
+        </g>
+        <text x="22" y="285" font-size="7.4" fill="#7b8a9a">Every line is a learned weight. Bias terms are omitted for clarity.</text>
+        <text x="420" y="50" font-size="7.4" fill="#7b8a9a">dense = every input connected to every unit</text>
+      </g>
+    </svg>

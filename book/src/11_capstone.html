@@ -1,0 +1,266 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Module 11</span>
+    <h1 id="m11">Assembling the Pieces</h1>
+    <p class="dek">A full-spectrum engagement against a synthetic enterprise: scope, chain, evidence, report and retest.</p>
+  </div>
+
+  <div class="objectives">
+    <div class="lbl">Learning objectives</div>
+    <ul>
+      <li>Plan and execute a multi-day engagement that chains techniques from every previous module.</li>
+      <li>Operate within rules of engagement that are specific to AI systems and their side effects.</li>
+      <li>Maintain evidence quality across probabilistic tests and multi-step attack paths.</li>
+      <li>Communicate findings at executive, engineering and detection levels.</li>
+      <li>Run a clean-up and retest process that proves the environment is back to baseline.</li>
+      <li>Assess an engagement against a defensible rubric.</li>
+    </ul>
+  </div>
+
+  <p class="lede">The capstone is not a new technique. It is the discipline of combining techniques under time pressure, with an objective, a scope and an evidence trail. Students who can break one agent in a lab have learned a skill; students who can find the shortest path through an enterprise, demonstrate it safely and leave the environment clean have learned the job.</p>
+
+  <h2 id="m11-scenario">11.1 The target: Meridian Health Group</h2>
+
+  <p>Meridian is a fictional healthcare payer with 4,000 employees and a digital front door. The environment is rebuilt in the lab from container images and synthetic data. Nothing in it connects to a real network.</p>
+
+  <div class="kv">
+    <div class="row"><div class="k">Business</div><div class="v">Health insurance, claims processing and member services. Regulated; handles personal and health data.</div></div>
+    <div class="row"><div class="k">AI estate</div><div class="v">Member support assistant, internal productivity copilot, claims triage multi-agent system, document extraction pipeline, data science platform.</div></div>
+    <div class="row"><div class="k">Crown jewels</div><div class="v">A synthetic patient dataset ("Nightingale"), the payment ledger, the claims adjudication rules, and an executive mailbox containing a merger memo.</div></div>
+    <div class="row"><div class="k">Users</div><div class="v">Members (internet), support agents (internal), claims analysts, executives, data scientists, contractors.</div></div>
+    <div class="row"><div class="k">Constraints</div><div class="v">No real member data; no outbound email to real addresses; payments confined to a mock ledger; all attacker infrastructure inside the lab network.</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th style="width:19%">System</th><th style="width:33%">Architecture</th><th style="width:24%">Authority</th><th>Known-by-design weakness</th></tr></thead>
+    <tbody>
+      <tr><td><b>Member assistant</b></td><td>Web chat → gateway → RAG over help centre and member documents → model API; tool: <code>update_address</code>, <code>issue_refund</code></td><td>Acts as the member; refunds up to €250</td><td>Post-filtered ACLs; retrieved content not delimited</td></tr>
+      <tr><td><b>Productivity copilot</b></td><td>Desktop client → MCP host → mail, files, calendar servers; local stdio servers; one remote MCP server</td><td>Delegated user scopes; application permission for a shared mailbox</td><td>Tool descriptions reviewed once at install; no egress allowlist</td></tr>
+      <tr><td><b>Claims triage</b></td><td>Orchestrator → intake agent → policy agent → payment agent; A2A over HTTP</td><td>Payment agent can write to the ledger</td><td>Agents authenticate with a shared API key; unsigned messages</td></tr>
+      <tr><td><b>Extraction pipeline</b></td><td>S3 → parser → embedding → Qdrant → analyst review</td><td>Service account reads the intake bucket</td><td>Parser accepts PDFs from external providers; no sanitisation</td></tr>
+      <tr><td><b>Data platform</b></td><td>Kubernetes; vLLM; MLflow; Jupyter; model registry; GPU node pool</td><td>Notebooks run with a broad service account</td><td>MLflow and Jupyter unauthenticated on the internal network</td></tr>
+      <tr><td><b>Third parties</b></td><td>Model provider API; two MCP SaaS servers; a clearinghouse A2A agent</td><td>OAuth tokens with broad scopes</td><td>Token passthrough between MCP servers</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m11-roe">11.2 Rules of engagement</h2>
+
+  <p>The capstone adds a layer to the ethics discussion in the front matter: the lab is safe, but the <em>habits</em> must be right. Students are assessed on whether they follow the rules, not only on whether they succeed.</p>
+
+  <ul>
+    <li><strong>Scope.</strong> The lab CIDR, the five systems above, and the provided test accounts. No scanning outside the lab range, no real domain names, no external model providers.</li>
+    <li><strong>Side effects.</strong> Payments only in the mock ledger. Email only to <code>@lab.local</code>. File writes only in designated sandbox paths. No deletion of shared indexes.</li>
+    <li><strong>Data.</strong> Only synthetic data. If a canary or "realistic" record appears, stop and notify the instructor; that is a test of the stop condition.</li>
+    <li><strong>Persistence.</strong> Permitted only for the duration of the exercise and only with a written record of every artefact created. Cleanup is part of the deliverable.</li>
+    <li><strong>Third parties.</strong> The mock vendor services are in scope only through the customer's configuration. Do not attack the mock provider's control plane; that boundary is deliberate.</li>
+    <li><strong>Stop conditions.</strong> Unintended external network access, a real credential, a production-like action outside the mock ledger, or a system becoming unavailable for other students.</li>
+  </ul>
+
+  <div class="box warn">
+    <span class="lbl">The clean-up contract</span>
+    <p>Before the engagement, write down every mutation the team might make: poisoned documents, memory entries, uploaded models, created agents, service accounts, scheduled jobs, test users, modified prompts, index snapshots. After the engagement, verify each one is removed or restored, and prove it with a fresh-session test and a diff of the relevant stores. "We deleted the document" is not proof if the index still holds the embedding.</p>
+  </div>
+
+  <h2 id="m11-plan">11.3 Engagement plan</h2>
+
+  <table>
+    <thead><tr><th style="width:12%">Phase</th><th style="width:28%">Objective</th><th style="width:30%">Techniques</th><th>Success condition</th></tr></thead>
+    <tbody>
+      <tr><td><b>Day 1 — Scope &amp; model</b></td><td>Confirm the map and the plan</td><td>Asset inventory validation, threat model refresh, test plan, baseline telemetry</td><td>Signed test plan; baseline logs captured; stop conditions agreed</td></tr>
+      <tr><td><b>Day 1–2 — Recon</b></td><td>Find the shortest entry path</td><td>Passive OSINT, service fingerprinting, agent-card discovery, unauthenticated endpoint checks</td><td>At least two viable entry points with evidence</td></tr>
+      <tr><td><b>Day 2 — Initial access</b></td><td>Obtain a foothold in an AI system</td><td>Support-agent injection; exposed MLflow/Jupyter; malicious document through extraction</td><td>Control over a model input or an authenticated session</td></tr>
+      <tr><td><b>Day 3 — Foothold</b></td><td>Map authority from the foothold</td><td>Tool enumeration, RAG probing, memory inspection, MCP server inventory</td><td>Capability graph of the reached system; one credential or data access</td></tr>
+      <tr><td><b>Day 3–4 — Escalation</b></td><td>Move from content to infrastructure</td><td>Confused deputy, MCP token abuse, SSRF to mock metadata, agent impersonation</td><td>Access to a more privileged system or identity</td></tr>
+      <tr><td><b>Day 4 — Persistence</b></td><td>Demonstrate durability</td><td>Memory poisoning, poisoned corpus document, malicious MCP tool, agent registration</td><td>Effect survives a new session or a restart</td></tr>
+      <tr><td><b>Day 4–5 — Collection &amp; impact</b></td><td>Reach a crown jewel</td><td>Cross-tenant retrieval, embedding inversion, exfiltration channel, ledger action</td><td>Controlled demonstration against the designated canary</td></tr>
+      <tr><td><b>Day 5 — Cleanup &amp; report</b></td><td>Leave no trace; make the case</td><td>Cleanup verification, evidence packaging, debrief, draft findings</td><td>Baseline restored; report reviewed by a second operator</td></tr>
+    </tbody>
+  </table>
+
+  <figure>
+    <svg viewBox="0 0 700 210" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs><marker id="a11" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#b45309"/></marker></defs>
+      <g font-size="7.2">
+        <line x1="30" y1="40" x2="670" y2="40" stroke="#d5dde4" stroke-width="0.8"/>
+        <g fill="#0f2233">
+          <text x="30" y="26" font-size="7.6" font-weight="bold">Entry</text>
+          <text x="150" y="26" font-size="7.6" font-weight="bold">Content</text>
+          <text x="280" y="26" font-size="7.6" font-weight="bold">Capability</text>
+          <text x="410" y="26" font-size="7.6" font-weight="bold">Identity</text>
+          <text x="540" y="26" font-size="7.6" font-weight="bold">Impact</text>
+        </g>
+        <g>
+          <circle cx="30" cy="40" r="4" fill="#b45309"/>
+          <circle cx="150" cy="40" r="4" fill="#b45309"/>
+          <circle cx="280" cy="40" r="4" fill="#b45309"/>
+          <circle cx="410" cy="40" r="4" fill="#b45309"/>
+          <circle cx="540" cy="40" r="4" fill="#b45309"/>
+        </g>
+        <g fill="#5b6b7c">
+          <text x="18" y="60">public chat</text>
+          <text x="18" y="70">exposed MLflow</text>
+          <text x="18" y="80">malicious PDF</text>
+          <text x="138" y="60">email / document</text>
+          <text x="138" y="70">agent card</text>
+          <text x="138" y="80">tool output</text>
+          <text x="268" y="60">RAG read</text>
+          <text x="268" y="70">MCP tool</text>
+          <text x="268" y="80">code interpreter</text>
+          <text x="398" y="60">shared API key</text>
+          <text x="398" y="70">OAuth passthrough</text>
+          <text x="398" y="80">SSRF → role</text>
+          <text x="528" y="60">cross-tenant data</text>
+          <text x="528" y="70">ledger write</text>
+          <text x="528" y="80">mailbox exfil</text>
+        </g>
+
+        <g stroke="#b45309" stroke-width="0.9" fill="none" marker-end="url(#a10)">
+          <path d="M40 95 H140" marker-end="url(#a10)"/>
+          <path d="M160 95 H270" marker-end="url(#a10)"/>
+          <path d="M290 95 H400" marker-end="url(#a10)"/>
+          <path d="M420 95 H530" marker-end="url(#a10)"/>
+        </g>
+        <g fill="#7b8a9a" font-size="6.6">
+          <text x="70" y="110">plant or persuade</text>
+          <text x="190" y="110">tool / retrieval abuse</text>
+          <text x="320" y="110">delegate or steal</text>
+          <text x="450" y="110">act as the principal</text>
+        </g>
+
+        <rect x="20" y="132" width="660" height="64" rx="3" fill="#f7f8fa" stroke="#dde3e9"/>
+        <text x="32" y="148" font-size="7.4" font-weight="bold" fill="#33465a">Objective chain</text>
+        <text x="32" y="162" font-size="7.2" fill="#5b6b7c">A credible capstone demonstrates one end-to-end chain, for example: malicious supplier PDF →</text>
+        <text x="32" y="175" font-size="7.2" fill="#5b6b7c">extraction pipeline → poisoned policy chunk → claims agent → payment agent → ledger entry.</text>
+        <text x="32" y="188" font-size="7.2" fill="#5b6b7c">Each hop must be evidenced, reproducible and reversible; a demo is not a finding.</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 11.1 — The capstone as a chain, not a checklist.</b> Teams are assessed on the shortest evidenced path from an unauthenticated entry point to a designated crown jewel.</figcaption>
+  </figure>
+
+  <h2 id="m11-objectives">11.4 Objectives and scoring levels</h2>
+
+  <p>Not every team will reach the crown jewels. Define levels so that partial success is still assessable and the debrief is fair.</p>
+
+  <table>
+    <thead><tr><th style="width:14%">Level</th><th style="width:48%">Demonstrated</th><th>Evidence required</th></tr></thead>
+    <tbody>
+      <tr><td><b>Bronze</b></td><td>Validated inventory; two entry points; one injection that changes model behaviour</td><td>Reproduction steps, assembled prompt, response, trial count</td></tr>
+      <tr><td><b>Silver</b></td><td>Indirect injection that causes a tool call; cross-tenant retrieval or ACL bypass; persistence across a session</td><td>Tool-call log, retrieved chunk IDs, before/after state</td></tr>
+      <tr><td><b>Gold</b></td><td>Privilege escalation across a trust boundary (agent → infrastructure or tenant → tenant); controlled exfiltration to the mock collector</td><td>Identity chain, credential provenance, egress capture</td></tr>
+      <tr><td><b>Platinum</b></td><td>End-to-end chain to a crown jewel with a reversible, non-destructive demonstration, plus a detection that fired and a control that would have stopped it</td><td>Full chain, timeline, detection alert, control gap analysis</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m11-evidence">11.5 Evidence that survives scrutiny</h2>
+
+  <p>AI findings are easy to dispute because behaviour varies. Evidence must make reproduction cheap for someone who was not there.</p>
+
+  <table>
+    <thead><tr><th style="width:24%">Artefact</th><th style="width:42%">What to capture</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Assembled prompt</td><td>System, developer, retrieved chunks, user input, tool results — in order</td><td>Without it, a failed reproduction is uninterpretable</td></tr>
+      <tr><td>Model identity</td><td>Provider, model ID, version, sampling parameters, request ID</td><td>Behaviour changes with version and temperature</td></tr>
+      <tr><td>Retrieval trace</td><td>Query, rewritten query, chunk IDs, scores, filters</td><td>Proves poisoning or ACL bypass</td></tr>
+      <tr><td>Tool trace</td><td>Name, arguments, identity, result, approval decision</td><td>Proves effect and authority</td></tr>
+      <tr><td>Trial log</td><td>All attempts, not only successes</td><td>Supports ASR and avoids cherry-picking</td></tr>
+      <tr><td>Timeline</td><td>UTC timestamps across attacker, target and detection clocks</td><td>Correlates with SOC telemetry</td></tr>
+      <tr><td>Hashes</td><td>Payloads, documents, artefacts, screenshots</td><td>Integrity and chain of custody</td></tr>
+      <tr><td>Detection record</td><td>Whether an alert fired, when, and what it showed</td><td>Makes the finding actionable for the blue team</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m11-report">11.6 The report</h2>
+
+  <p>Structure the report for three audiences. The executive summary answers "what could happen, how likely, what should we do first?" The technical findings answer "how do we reproduce and fix it?" The detection appendix answers "how would we know next time?"</p>
+
+  <table>
+    <thead><tr><th style="width:8%">§</th><th style="width:26%">Section</th><th>Content</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Executive summary</td><td>Objectives, headline findings, risk rating, top three actions, residual risk</td></tr>
+      <tr><td>2</td><td>Scope and approach</td><td>Systems, dates, constraints, techniques, limitations, assumptions</td></tr>
+      <tr><td>3</td><td>Attack narrative</td><td>One end-to-end story with a timeline and diagram</td></tr>
+      <tr><td>4</td><td>Findings</td><td>One entry per finding, structured as below</td></tr>
+      <tr><td>5</td><td>Detection assessment</td><td>What fired, what did not, why, and proposed analytics</td></tr>
+      <tr><td>6</td><td>Remediation roadmap</td><td>Sequenced by risk reduction per unit of effort; owners and dates</td></tr>
+      <tr><td>7</td><td>Appendices</td><td>Tooling, payload hashes, logs, ATLAS mapping, glossary</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Finding template</h3>
+  <table class="compact">
+    <thead><tr><th style="width:22%">Field</th><th>Guidance</th></tr></thead>
+    <tbody>
+      <tr><td>Title</td><td>Outcome, not technique: "Cross-tenant document disclosure via support assistant"</td></tr>
+      <tr><td>Severity</td><td>Rubric score with inputs shown; state confidence</td></tr>
+      <tr><td>Affected assets</td><td>System, component, version, tenant</td></tr>
+      <tr><td>Preconditions</td><td>Access, content, configuration required</td></tr>
+      <tr><td>Description</td><td>Mechanism in plain language, with the trust boundary that failed</td></tr>
+      <tr><td>Reproduction</td><td>Numbered steps; payload hash; trial count and ASR</td></tr>
+      <tr><td>Evidence</td><td>Prompt, tool call, retrieval IDs, screenshot, log reference</td></tr>
+      <tr><td>Impact</td><td>Business consequence, data class, blast radius, reversibility</td></tr>
+      <tr><td>Detection</td><td>Observed telemetry; whether an alert fired; gap</td></tr>
+      <tr><td>Remediation</td><td>Specific, testable, owned; immediate containment versus durable fix</td></tr>
+      <tr><td>Retest</td><td>Procedure and pass condition</td></tr>
+      <tr><td>References</td><td>ATLAS technique, OWASP category, vendor advisory</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m11-samples">11.7 Three worked findings</h2>
+
+  <h3>F-01 — Zero-click exfiltration through the productivity copilot</h3>
+  <p><strong>Severity: Critical.</strong> An external sender emails a user whose mailbox is indexed by the copilot. The message body contains a hidden instruction to summarise the ten most recent messages from the executive distribution list and render them as a Markdown image pointing at an attacker-controlled host. The copilot processes the mailbox on a scheduled digest, retrieves the messages, and emits the image reference. The client renders it, sending the encoded content to the collector. No user click is required.</p>
+  <p><em>Why it works:</em> the mailbox is untrusted content, the copilot has read access to a shared mailbox through an application permission, and the client renders remote images. That is the lethal trifecta in one feature. <em>Evidence:</em> inbox message hash, copilot trace with retrieved message IDs, egress proxy capture of the image request, decoded payload. <em>Remediation:</em> treat mail as untrusted, remove application-permission access to shared mailboxes from the digest path, block remote image rendering, add an egress allowlist, and require approval for any cross-mailbox summarisation. <em>Detection:</em> first-seen domain in a rendered resource, encoded query strings, copilot reading a mailbox outside the requesting user's own.</p>
+
+  <h3>F-02 — Cross-tenant retrieval in the member assistant</h3>
+  <p><strong>Severity: High.</strong> The assistant retrieves the top eight chunks globally and filters by member ID after retrieval. A member can ask a question whose answer appears in another member's document; the answer is paraphrased, and the citation points to a document the member cannot open. The model has seen the restricted text even when the answer withholds it.</p>
+  <p><em>Evidence:</em> two test accounts, retrieval trace showing the other tenant's chunk ID, answer and citation. <em>Remediation:</em> pre-filter by member and tenant at query time, use separate collections per tenant where feasible, and add a regression test that asserts no cross-tenant chunk can enter the prompt. <em>Detection:</em> assert tenant on every retrieved chunk; alert on violations; monitor for enumeration patterns.</p>
+
+  <h3>F-03 — Model registry tampering through an unauthenticated MLflow instance</h3>
+  <p><strong>Severity: High.</strong> MLflow is reachable from the analyst network without authentication. An attacker can list experiments, download artefacts and register a new model version. Because the deployment pipeline promotes the latest registered version by tag, a tampered artefact reaches staging. The pipeline does not verify signatures or compare hashes.</p>
+  <p><em>Evidence:</em> unauthenticated API calls, registered version, pipeline log showing promotion, diff of the artefact hash. <em>Remediation:</em> authenticate MLflow, restrict registry write to the CI identity, pin deployments by digest, verify signatures at admission, and require approval for model promotion. <em>Detection:</em> registry write events from non-CI identities; digest mismatch; new model version outside the release window.</p>
+
+  <h2 id="m11-grading">11.8 Assessment rubric</h2>
+
+  <table>
+    <thead><tr><th style="width:22%">Criterion</th><th style="width:10%">Weight</th><th>What distinguishes a strong performance</th></tr></thead>
+    <tbody>
+      <tr><td>Planning &amp; scoping</td><td>10%</td><td>Test plan tied to threat model; realistic timeboxes; stop conditions understood</td></tr>
+      <tr><td>Reconnaissance</td><td>10%</td><td>Passive-first; complete inventory; confidence levels; ownership verified</td></tr>
+      <tr><td>Technique depth</td><td>20%</td><td>Correct mechanism, not lucky payloads; variation and controls; reproducible</td></tr>
+      <tr><td>Chaining</td><td>20%</td><td>Evidence-backed path across a trust boundary; minimal necessary action</td></tr>
+      <tr><td>Operational safety</td><td>15%</td><td>No out-of-scope action; data minimisation; clean-up verified</td></tr>
+      <tr><td>Detection awareness</td><td>10%</td><td>Knows what fired, what should have, and why</td></tr>
+      <tr><td>Reporting</td><td>15%</td><td>Clear for executives; actionable for engineers; honest about uncertainty</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m11-debrief">11.9 Debrief and retest</h2>
+
+  <p>The debrief is a working session, not a presentation. Walk the blue team through the attack timeline against their telemetry, minute by minute. For each step, record: did we see it, did we alert, did we investigate, what would have stopped it? The output is a detection backlog with owners, not a list of complaints.</p>
+
+  <p>Retest should happen after remediation, with the same payloads and the same trial counts, and should include a negative control. Report the new ASR alongside the old one. If a control only reduces success from 60% to 40%, say so; a partial mitigation presented as a fix is worse than an honest residual risk.</p>
+
+  <h2 id="m11-takeaways">11.10 Key takeaways</h2>
+  <ul>
+    <li>An engagement is a chain of evidence, not a collection of successful prompts.</li>
+    <li>Scope and side effects are tighter in AI than in traditional testing because agents act.</li>
+    <li>Cleanup must cover derived artefacts, not just the original payload.</li>
+    <li>Report outcomes and business impact; keep technique detail in the appendix.</li>
+    <li>Measure detection as seriously as exploitation.</li>
+    <li>Retest with the same method and report residual risk honestly.</li>
+    <li>The most durable recommendations put authentication, authorisation, isolation, approval and egress in deterministic code; prompt changes are supplementary, not a fix.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Capstone review questions</div>
+    <ol>
+      <li>What is the shortest evidenced path from an unauthenticated entry point to the Nightingale dataset in your lab build?</li>
+      <li>Which control would break the most attack paths if applied first, and what does it cost operationally?</li>
+      <li>Which steps of your chain produced no telemetry, and what would you instrument to change that?</li>
+      <li>How did you prove cleanup was complete for each store you modified?</li>
+      <li>If the client could fund only three remediation actions, which three would you recommend and why?</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Appendices — lab build, tooling, mappings, templates</div>
+</section>

@@ -1,0 +1,77 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>The Model Context Protocol, MCP, is a standard way for an AI application to connect to tools, data sources and prompts. A server exposes capabilities — "read a file", "query a database", "send an email" — and a client (the AI host) makes them available to the model. It is the plumbing behind a lot of agent functionality, and it is spreading quickly because it removes custom integration work.</p>
+    <p>The security problem starts with a simple fact: <b>tool descriptions are instructions</b>. The model reads the description to decide when and how to use the tool. If an attacker can influence that description, they can influence the model. A malicious or compromised server can hide instructions in a tool description, change the description after approval ("rug pull"), shadow another tool's name, or return content that contains a fresh injection.</p>
+    <p>Then there is authority. An MCP server usually runs with the permissions of the user or service that launched it. Installing a server is therefore granting it access to files, network, credentials and APIs — often more access than the task needs. The protocol has authentication and authorisation mechanisms, but they only help if the deployment uses them: audience-bound tokens, per-server identity, least-privilege scopes and per-call approval.</p>
+    <ul>
+      <li><b>Treat a server as software you are installing</b>, not a configuration file. Pin versions, verify sources, review permissions.</li>
+      <li><b>Treat every tool result as untrusted input.</b> A file, a web page or a database row can contain instructions.</li>
+      <li><b>Do not pass tokens through.</b> A token issued for one service should not be accepted by another.</li>
+      <li><b>Sandbox and constrain.</b> Filesystem allowlists, egress control, no host mounts, no metadata access, short-lived identities.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>Installing an MCP server is granting it the permissions of whatever identity runs it. Read the install command the way you would read a sudoers file.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; a protocol is not a security model</span>
+
+    <p>MCP uses JSON-RPC 2.0 between a host, one or more clients and one or more servers. Servers expose three main primitives: <b>tools</b> (functions the model can call), <b>resources</b> (data identified by URI) and <b>prompts</b> (templates the user can invoke). Client-side features are <b>elicitation</b> (requesting user input), plus <b>sampling</b> (a server asking the host's model to generate), <b>roots</b> (filesystem boundaries the client exposes) and logging. Since the <b>2026-07-28</b> revision <b>sampling, roots and logging are deprecated</b> under SEP-2577 and should not be adopted by new implementations; they remain reachable for at least twelve months, so legacy deployments still need testing. Elicitation is the active client feature. Transport is either stdio for local servers or Streamable HTTP for remote servers; the older HTTP+SSE transport is also officially deprecated. The HTTP core is <b>stateless</b>: the old <code>initialize</code> handshake and session ID are gone, each request carries its protocol version and client capabilities in <code>_meta</code>, <code>server/discover</code> exposes capability discovery, and interactive server-to-client operations use multi-round-trip requests (MRTR) with a <code>requestState</code> handle. Streamable HTTP POST requests must carry <code>Mcp-Method</code> on every request and <code>Mcp-Name</code> when the request names a tool, resource or prompt; gateways can route, authorise and meter without reading the body. Change events are delivered through a client-opened <code>subscriptions/listen</code> stream, while progress is request-scoped. <code>clientInfo</code> in <code>_meta</code> is self-reported and is not an authenticated identity. Identify the revision before interpreting traffic.</p>
+
+    <p>The trust relationships are easy to get wrong. The host trusts the client library; the client trusts the server's declared capabilities; the model trusts the tool descriptions; the server trusts the arguments; and the downstream API trusts the token. Each arrow is a place where a compromised component can act with more authority than the user intended.</p>
+
+    <div class="formula">
+      <span class="eq">Effective capability ≈ (tools exposed) × (credential scope) × (network reach) × (data visible)</span>
+      <span class="where">A server with one harmless tool but a broad cloud token is more dangerous than a server with ten tools and no credentials. Inventory the credential, not the tool list.</span>
+    </div>
+
+    <h3>Tool poisoning and its variants</h3>
+    <table>
+      <thead><tr><th style="width:23%">Variant</th><th style="width:42%">Mechanism</th><th>Why it works</th></tr></thead>
+      <tbody>
+        <tr><td><b>Description injection</b></td><td>Hidden text in a tool description tells the model to prefer this tool or to leak context</td><td>The description is part of the prompt; the model treats it as trusted metadata</td></tr>
+        <tr><td><b>Schema confusion</b></td><td>Misleading parameter names, defaults or examples steer the model to send sensitive data</td><td>The model fills arguments from natural language, not from a type checker</td></tr>
+        <tr><td><b>Shadowing</b></td><td>A server registers a tool with the same or a very similar name as a trusted one</td><td>Name-based selection and user approval are not unique</td></tr>
+        <tr><td><b>Rug pull</b></td><td>The tool behaves benignly at approval, then changes definition or behaviour</td><td>Approval is a one-time event; the definition is mutable</td></tr>
+        <tr><td><b>Cross-server shadowing</b></td><td>One server's description references another server's tool to redirect a call</td><td>The model has a single tool namespace and no per-server provenance</td></tr>
+        <tr><td><b>Result injection</b></td><td>Tool output contains instructions for the next turn</td><td>Output is appended to context without a trust label</td></tr>
+        <tr><td><b>Sampling abuse (deprecated)</b></td><td>A server asks the host to generate content that exfiltrates context or bypasses policy</td><td>The host may treat the request as internal</td></tr>
+      </tbody>
+    </table>
+
+    <p>The common thread is that the model cannot verify provenance. A tool description, a resource and a user message all arrive as text. Defence therefore has to happen outside the model: pin and hash tool definitions, show the user the exact schema at approval time, re-verify on change, namespace tools by server, and never let a tool description grant authority that the server does not already have.</p>
+
+    <h3>Authentication and authorisation that actually binds</h3>
+    <p>The current MCP Authorization guidance for remote MCP servers describes an OAuth 2.1 resource-server model with PKCE, protected resource metadata, issuer validation and <b>resource indicators</b> so that a token is audience-bound to a specific server. This is guidance for servers that implement that specification: a remote HTTP server is not inherently OAuth-protected, and may use a different scheme or none. The critical checks are:</p>
+    <ul>
+      <li><strong>Issuer validation.</strong> The server verifies the token came from the expected authorisation server, not just that the signature is valid, and binds client credentials to that issuer.</li>
+      <li><strong>Audience validation.</strong> The token's audience matches this server. A token issued for the calendar service must not be accepted by the mail service.</li>
+      <li><strong>Scope validation.</strong> The token's scopes cover the requested operation, and the server enforces them per call.</li>
+      <li><strong>No passthrough.</strong> The server must not forward the client's token to an upstream API unless that API is the intended audience. Use a separate credential for the upstream.</li>
+      <li><strong>Short lifetime and rotation.</strong> Long-lived static tokens turn a single compromise into permanent access.</li>
+      <li><strong>Client registration.</strong> Prefer Client ID Metadata Documents (CIMD). Dynamic Client Registration is deprecated in 2026-07-28 and remains only for compatibility with authorisation servers that do not support CIMD; where it is used, constrain redirect URIs and rate-limit registration.</li>
+      <li><strong>Consent and binding.</strong> The user approves a specific client, server and scope set; the approval is revocable and visible.</li>
+      <li><strong>Per-request validation.</strong> Do not assume a prior connection established identity. Check the credential, the protocol version and the capability claims on every request, and reject routing metadata that disagrees with the method or target. Validate <code>Mcp-Method</code> and <code>Mcp-Name</code> against the body and the target; do not confuse self-reported <code>clientInfo</code> with the authenticated principal.</li>
+      <li><strong>MRTR state integrity.</strong> Integrity-protect, bind and expire <code>requestState</code>, and reject replay or cross-context reuse. Encrypt it, or store it server-side, when it contains confidential data. Treat each round as a fresh authorisation decision.</li>
+    </ul>
+
+    <p>Local stdio servers have a different model: the server runs as a child process with the user's OS permissions. There is no OAuth boundary, so the controls are process isolation, filesystem allowlists and the principle that the server should run as a dedicated low-privilege account. A local server that can read <code>~/.ssh</code> and reach the internet is a credential-exfiltration tool with a friendly JSON interface.</p>
+
+    <h3>Hardening checklist</h3>
+    <table>
+      <thead><tr><th style="width:30%">Layer</th><th>Control</th></tr></thead>
+      <tbody>
+        <tr><td>Supply chain</td><td>Allowlisted registry, pinned versions, hash verification, signed releases, reviewed source, no install-time scripts</td></tr>
+        <tr><td>Identity</td><td>Per-server identity, short-lived credentials, audience-bound tokens, no shared service accounts</td></tr>
+        <tr><td>Authorisation</td><td>Per-tool scopes, per-call policy, human approval for write/network/spend actions, deny by default; integrity-protected and expiring MRTR state</td></tr>
+        <tr><td>Reliability</td><td>Idempotency keys on tools with external effects; deduplicate retries after interrupted stateless calls</td></tr>
+        <tr><td>Isolation</td><td>Container or sandbox, read-only filesystem, no host mounts, no cloud metadata, restricted egress</td></tr>
+        <tr><td>Context</td><td>Tool definitions pinned and displayed, results labelled untrusted, instruction hierarchy enforced outside the model</td></tr>
+        <tr><td>Monitoring</td><td>Log every tool call with arguments, identity and result hash; alert on definition changes, new tools and egress</td></tr>
+      </tbody>
+    </table>
+
+    <p>Test the deployment as an attacker would: can you register a tool that shadows a trusted one? Can you change a description after approval? Does a token for server A work on server B? Can a resource URI escape its root? Can a tool result cause the next call to send data out? Can a local server read files outside its sandbox? Each of these is a concrete, reproducible check, and each maps to a control above.</p>
+  </div>

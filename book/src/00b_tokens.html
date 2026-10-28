@@ -1,0 +1,348 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Foundation primer &middot; Part 0</span>
+    <h1 id="p-tokens">How AI Reads: Tokens and Transformers</h1>
+    <p class="dek">What actually happens between typing a prompt and receiving a reply — the tokenizer, the embedding, the attention stack, the logits and the cache — and why every one of those stages is an attack surface.</p>
+  </div>
+
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; no mathematics required</div>
+    <p>When you type a sentence into an AI system, the model does not see words. A program called a <b>tokenizer</b> chops the text into chunks called <b>tokens</b> — sometimes a whole common word, sometimes a word fragment, sometimes a single character or even a byte. Each token is replaced by an integer ID. For English text, one token is roughly four characters or three-quarters of a word; code, names, emoji and non-Latin scripts usually cost more tokens.</p>
+    <p>Those IDs are used to look up learned lists of numbers called <b>embeddings</b>. You can picture each token as a point in a space with thousands of dimensions, where related meanings sit near each other. The model also records where each token sits in the sequence, because "dog bites man" and "man bites dog" contain the same tokens in a different order.</p>
+    <p>The sequence then passes through a stack of <b>transformer blocks</b> — often 30 to 100 of them. Inside each block, an <b>attention</b> step lets each position draw on the positions available to it and pull in the information that seems relevant. In a decoder-only language model the mask makes that set causal: a token can attend to itself and earlier tokens, never to future ones. A small neural network then processes each position on its own. The same block is repeated, with different learned weights each time, and the representation of each token becomes progressively richer and more contextual.</p>
+    <p>At the end, the model produces a score for every token in its vocabulary: how likely each one is to come next. Those scores are turned into probabilities, one token is chosen, appended to the text, and the whole process runs again. That is why generation is one token at a time, and why the same prompt can produce different answers.</p>
+    <p>The <b>context window</b> is the maximum number of tokens the model can consider at once. The model has no memory of previous conversations unless the application sends the history again; what looks like memory is usually text being replayed. A <b>KV cache</b> is an optimisation that stores intermediate attention values so the model does not recompute the whole prompt for every new token.</p>
+    <p>Security relevance: the tokenizer decides what the model can distinguish; the context window decides what it can still see; the attention pattern decides what it prioritises; and the sampling settings decide how randomly it answers. Attacks often work by exploiting exactly those boundaries rather than by "outsmarting" the model.</p>
+    <div class="onething"><b>One thing to remember</b><br>The model never sees your text. It sees a specific token sequence produced by a specific tokenizer. If a filter, a guardrail and a model tokenize the same input differently, they are not looking at the same thing.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full mechanism, with equations</span></div>
+
+  <p class="lede">This primer follows the data path from raw text to a sampled token. Each stage is described at the level needed to reason about failures, then connected to concrete offensive and defensive consequences. The mathematics is kept to the minimum that makes the behaviour predictable.</p>
+
+  <h2 id="p-tok-1">0.1 Tokenization: from Unicode to a sequence of integers</h2>
+
+  <p>A tokenizer is a deterministic function from a string to a list of integer IDs, plus an inverse function that can reconstruct most or all of the original string. Modern LLM tokenizers are <em>subword</em> tokenizers: they keep frequent strings as single units and decompose rare strings into smaller pieces. This gives a fixed vocabulary that can represent any input, including text the model has never seen, without a separate out-of-vocabulary token for every unknown word.</p>
+
+  <h3>Normalisation and pre-tokenisation</h3>
+  <p>Most pipelines begin with optional Unicode normalisation (NFKC or a custom variant), whitespace cleanup and a <b>pre-tokenizer</b> that splits the text at word and punctuation boundaries. The choice matters. NFKC turns some visually distinct characters into a canonical form, which can collapse homoglyphs — useful for defence, but also a source of mismatch when one component normalises and another does not. SentencePiece-style tokenizers often replace spaces with a visible meta-symbol (<code>▁</code>) and treat the whole input as one stream, while GPT-2-style byte-level BPE operates on a reversible byte-to-Unicode alphabet so that every possible byte sequence is representable.</p>
+
+  <h3>Byte-level BPE</h3>
+  <p>Byte Pair Encoding (BPE) was adapted for neural machine translation by Sennrich and colleagues in 2016 and popularised for LLMs by GPT-2. Training is simple and greedy:</p>
+  <ol>
+    <li>Start with a vocabulary consisting of individual bytes (256 symbols) or characters.</li>
+    <li>Encode the training corpus with the current vocabulary.</li>
+    <li>Count every adjacent pair of symbols. Merge the most frequent pair into a new symbol.</li>
+    <li>Record the merge and its rank. Repeat until the vocabulary reaches the target size.</li>
+  </ol>
+  <p>At inference time the tokenizer applies the learned merges in rank order. A useful way to see it is as a merge table, not a dictionary of words. The classic toy corpus demonstrates the idea:</p>
+
+  <table class="compact">
+    <thead><tr><th style="width:10%">Rank</th><th style="width:18%">Pair merged</th><th style="width:18%">New symbol</th><th>Effect on the corpus</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>e + s</code></td><td><code>es</code></td><td>newest → new<code>es</code>t, widest → wid<code>es</code>t</td></tr>
+      <tr><td>2</td><td><code>es + t</code></td><td><code>est</code></td><td>new<code>est</code>, wid<code>est</code></td></tr>
+      <tr><td>3</td><td><code>l + o</code></td><td><code>lo</code></td><td>low → <code>lo</code>w, lower → <code>lo</code>wer</td></tr>
+      <tr><td>4</td><td><code>lo + w</code></td><td><code>low</code></td><td><code>low</code>, <code>low</code>er</td></tr>
+      <tr><td>5</td><td><code>low + er</code></td><td><code>lower</code></td><td>the frequent word becomes one unit</td></tr>
+    </tbody>
+  </table>
+
+  <p>Real vocabularies are built the same way at a much larger scale: GPT-2 uses 50,257 tokens, BERT 30,522, Llama 3 128,256. A larger vocabulary shortens sequences (fewer tokens per sentence) but makes the embedding and output matrices larger and can leave rare tokens under-trained. The merge table is a learned artefact with security consequences: a token boundary inside a keyword can hide it from a lexical filter, and a character sequence that looks ordinary on screen can tokenize into something entirely different.</p>
+
+  <h3>WordPiece, Unigram and SentencePiece</h3>
+  <p><b>WordPiece</b>, used by BERT, chooses merges by a likelihood criterion rather than raw frequency and marks word-internal pieces with <code>##</code> (so <code>playing</code> might be <code>play</code> + <code>##ing</code>). At inference it performs greedy longest-match-first against the vocabulary, with a fallback to <code>[UNK]</code>. <b>Unigram LM</b> starts from a large candidate vocabulary and prunes pieces that least reduce the corpus likelihood, leaving a probabilistic segmentation; SentencePiece implements both unigram and BPE variants and can operate directly on raw text, including spaces. The practical lesson for testers is that "the tokenizer" is not a universal component: each model family has its own normalisation, merge rules and special-token conventions, and those differences are observable.</p>
+
+  <h3>Special tokens and chat templates</h3>
+  <p>Instruction-tuned models are trained with control tokens that delimit roles and turns — for example <code>&lt;|im_start|&gt;user</code>, <code>&lt;|endoftext|&gt;</code>, or a model-specific BOS/EOS pair. A chat template converts a list of messages into a single token sequence, inserting those markers. This layer is security-critical because it defines the model's notion of who said what. If user-controlled text can contain a role marker that the template does not escape, the attacker may be able to forge a turn boundary. If a guardrail inspects the rendered text but the model receives a differently rendered template, the guardrail is checking the wrong object.</p>
+
+  <div class="formula">
+    <span class="eq">|tokens| &asymp; |words| / 0.75 &asymp; 1.33 &times; |words| &nbsp;&nbsp;(English prose, rough)</span>
+    <span class="where">One token is roughly three-quarters of an English word, so a passage has more tokens than words. <b>Why it varies:</b> common words are one token; rare words, identifiers, URLs, base64, JSON, emoji and non-Latin scripts fragment into several. Code and logs can exceed two tokens per "word". Always measure with the target model's own tokenizer rather than estimating from characters.</span>
+  </div>
+
+  <h3>Tokenization as an attack surface</h3>
+  <table>
+    <thead><tr><th style="width:24%">Phenomenon</th><th style="width:38%">Mechanism</th><th>Security consequence</th></tr></thead>
+    <tbody>
+      <tr><td><b>Boundary splitting</b></td><td>A keyword is split across tokens the filter does not join (<code>ig</code> + <code>nore</code>)</td><td>Lexical guardrails miss the instruction; the model may still reconstruct it</td></tr>
+      <tr><td><b>Tokenizer mismatch</b></td><td>Guardrail and model use different vocabularies or normalisation</td><td>Filter sees a benign string; model sees an instruction</td></tr>
+      <tr><td><b>Unicode confusables</b></td><td>Homoglyphs, zero-width joiners, bidi controls, variation selectors</td><td>Visual review and string matching disagree with the model's input</td></tr>
+      <tr><td><b>Glitch tokens</b></td><td>Vocabulary entries barely present in training, with poorly trained embeddings</td><td>Odd, sometimes instruction-adjacent behaviour; fingerprinting signal</td></tr>
+      <tr><td><b>Token expansion</b></td><td>Rare scripts or byte fallback turn one character into many tokens</td><td>Cost amplification and context exhaustion from a short input</td></tr>
+      <tr><td><b>Special-token injection</b></td><td>User text contains a reserved control token that is not escaped</td><td>Forged role boundaries or premature end-of-turn</td></tr>
+      <tr><td><b>Template divergence</b></td><td>Training, serving and evaluation use different chat templates</td><td>Safety behaviour differs between test and production</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="p-tok-2">0.2 Embeddings: IDs become vectors</h2>
+
+  <p>The model holds an embedding matrix <b>E</b> with one row per vocabulary entry and <b>d</b> columns (the model dimension). Token ID <i>i</i> selects row <b>E</b><sub><i>i</i></sub>. For a sequence of <i>n</i> tokens the result is a matrix <b>X</b> of shape <i>n</i> × <i>d</i>. Early layers see a mixture of lexical identity and position; later layers see context-dependent representations in which the same token can occupy very different directions depending on its neighbours.</p>
+
+  <div class="formula">
+    <span class="eq"><b>X</b><sub><i>i</i></sub> = <b>E</b>[id<sub><i>i</i></sub>] + <b>p</b><sub><i>i</i></sub></span>
+    <span class="where"><b>E</b> ∈ ℝ<sup><i>V</i>×<i>d</i></sup> is the token embedding matrix; <b>p</b><sub><i>i</i></sub> is a position vector (or position is injected later by RoPE). In many modern models the output projection reuses <b>E</b><sup>T</sup> ("tied embeddings").</span>
+  </div>
+
+  <p>Dimensions range from 768 in small BERT models to 4,096 in 7–8B LLMs and 8,192 or more in frontier-scale models. The embedding matrix alone can be hundreds of millions of parameters: Llama 3 8B has a 128,256-token vocabulary and a 4,096-dimensional model, so the input embedding table holds roughly 525 million values. This is why vocabulary choices affect memory, latency and the cost of fine-tuning.</p>
+
+  <p>The geometry is meaningful but not a clean dictionary. Cosine similarity between static embeddings often reflects topical or syntactic relatedness; contextual embeddings encode sense, role and co-reference. Embedding spaces are anisotropic — vectors cluster in a narrow cone — so raw cosine values are not calibrated probabilities. Module 6 shows how leaked vectors can be inverted into approximate text, which is why an "opaque" vector store is still a sensitive data store.</p>
+
+  <h2 id="p-tok-3">0.3 Position: how order survives the set</h2>
+
+  <p>Attention is permutation-equivariant: without positional information, shuffling the input would shuffle the outputs but not change their content. Models therefore inject position in one of several ways.</p>
+
+  <p><b>Learned absolute positions.</b> GPT-2 adds a learned vector for each index up to a fixed maximum. Simple, but the model has no defined behaviour beyond the trained range.</p>
+
+  <p><b>Sinusoidal encoding.</b> The original transformer uses fixed waves of different frequencies:</p>
+
+  <div class="formula">
+    <span class="eq">PE(<i>pos</i>, 2<i>i</i>) = sin(<i>pos</i> / 10000<sup>2<i>i</i>/<i>d</i></sup>) &nbsp;&nbsp;&nbsp; PE(<i>pos</i>, 2<i>i</i>+1) = cos(<i>pos</i> / 10000<sup>2<i>i</i>/<i>d</i></sup>)</span>
+    <span class="where">Each dimension is a sinusoid of a different wavelength; the pattern for a given offset is unique and can be computed for positions beyond those seen in training, though performance still degrades.</span>
+  </div>
+
+  <p><b>Rotary position embeddings (RoPE).</b> Used by Llama, Mistral, Qwen and most current open models. Instead of adding a vector, RoPE rotates pairs of query and key dimensions by an angle proportional to the token's position:</p>
+
+  <div class="formula">
+    <span class="eq">θ<sub><i>i</i></sub> = 10000<sup>−2<i>i</i>/<i>d</i></sup>, &nbsp;&nbsp; <b>q</b><sub><i>m</i></sub> ← Rot(<i>m</i>θ) <b>q</b><sub><i>m</i></sub>, &nbsp;&nbsp; <b>k</b><sub><i>n</i></sub> ← Rot(<i>n</i>θ) <b>k</b><sub><i>n</i></sub></span>
+    <span class="where">The dot product <b>q</b><sub><i>m</i></sub><sup>T</sup><b>k</b><sub><i>n</i></sub> then depends on the relative offset <i>m</i>−<i>n</i>. Because relative position is what enters attention, RoPE extends more gracefully to longer contexts; "NTK" and "YaRN" scaling modify θ to stretch the effective range.</span>
+  </div>
+
+  <p><b>ALiBi</b> skips explicit position vectors and subtracts a per-head penalty proportional to distance from the attention score, biasing the model toward nearby tokens. Each scheme has different long-context behaviour, and each creates a different failure mode when an attacker controls ordering, padding or claimed position IDs.</p>
+
+  <h2 id="p-tok-4">0.4 Attention: the mixing operation</h2>
+
+  <p>For each layer, the input matrix <b>H</b> (shape <i>n</i> × <i>d</i>) is projected into queries, keys and values:</p>
+
+  <div class="formula">
+    <span class="eq"><b>Q</b> = <b>H W</b><sub><i>Q</i></sub>, &nbsp; <b>K</b> = <b>H W</b><sub><i>K</i></sub>, &nbsp; <b>V</b> = <b>H W</b><sub><i>V</i></sub></span>
+    <span class="where"><b>W</b><sub><i>Q</i></sub>, <b>W</b><sub><i>K</i></sub> ∈ ℝ<sup><i>d</i>×<i>d<sub>k</sub></i></sup>; <b>W</b><sub><i>V</i></sub> ∈ ℝ<sup><i>d</i>×<i>d<sub>v</sub></i></sup>. Queries express "what am I looking for", keys "what do I offer", values "what will I contribute if selected".</span>
+  </div>
+
+  <div class="formula">
+    <span class="eq">Attention(<b>Q</b>,<b>K</b>,<b>V</b>) = softmax( <b>QK</b><sup>T</sup> / √<i>d<sub>k</sub></i> + <b>M</b> ) <b>V</b></span>
+    <span class="where"><b>M</b> is a mask: causal (future positions set to −∞) for decoder-only LLMs, padding masks for variable-length batches, and sometimes a document or tenant mask. The √<i>d<sub>k</sub></i> scaling keeps dot products from saturating the softmax as dimensionality grows.</span>
+  </div>
+
+  <p>Multi-head attention runs <i>h</i> independent projections in parallel, concatenates the head outputs and mixes them with an output projection <b>W</b><sub><i>O</i></sub>. Different heads specialise — some track syntax, some copy names, some attend to previous-token or induction patterns, some act as "attention sinks" that absorb surplus probability. Grouped-query attention (GQA) and multi-query attention (MQA) share key/value heads across query heads to shrink the KV cache; this changes serving economics, not the basic operation.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs><marker id="at" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#5b6b7c"/></marker></defs>
+      <g font-size="8.4">
+        <rect x="18" y="40" width="112" height="44" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="30" y="58" font-weight="bold" fill="#0f4f4a">Token vectors</text>
+        <text x="30" y="72" font-size="7.2" fill="#3d5a5a">H — n × d</text>
+
+        <rect x="168" y="18" width="90" height="34" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="181" y="39" font-weight="bold" fill="#7a3a08">W_Q</text>
+        <rect x="168" y="62" width="90" height="34" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="181" y="83" font-weight="bold" fill="#7a3a08">W_K</text>
+        <rect x="168" y="106" width="90" height="34" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="181" y="127" font-weight="bold" fill="#7a3a08">W_V</text>
+
+        <rect x="292" y="18" width="86" height="34" rx="3" fill="#fff" stroke="#64748b"/>
+        <text x="304" y="39" fill="#33465a">Q</text>
+        <rect x="292" y="62" width="86" height="34" rx="3" fill="#fff" stroke="#64748b"/>
+        <text x="304" y="83" fill="#33465a">K</text>
+        <rect x="292" y="106" width="86" height="34" rx="3" fill="#fff" stroke="#64748b"/>
+        <text x="304" y="127" fill="#33465a">V</text>
+
+        <rect x="412" y="40" width="118" height="60" rx="3" fill="#eef2f6" stroke="#33465a"/>
+        <text x="425" y="60" font-weight="bold" fill="#1f3244">QKᵀ / √d_k</text>
+        <text x="425" y="74" font-size="7.2" fill="#4a5a6b">n × n score matrix</text>
+        <text x="425" y="88" font-size="7.2" fill="#4a5a6b">+ causal mask</text>
+
+        <rect x="412" y="128" width="118" height="50" rx="3" fill="#eef2f6" stroke="#33465a"/>
+        <text x="425" y="147" font-weight="bold" fill="#1f3244">softmax rows</text>
+        <text x="425" y="161" font-size="7.2" fill="#4a5a6b">attention weights</text>
+
+        <rect x="568" y="86" width="128" height="52" rx="3" fill="#eef7f5" stroke="#0f766e"/>
+        <text x="581" y="105" font-weight="bold" fill="#0f4f4a">A × V → W_O</text>
+        <text x="581" y="119" font-size="7.2" fill="#3d5a5a">mixed context per token</text>
+
+        <path d="M130 62 H164 M130 79 H164 M130 123 H164" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+        <path d="M258 35 H288 M258 79 H288 M258 123 H288" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+        <path d="M378 35 H408 V54 M378 79 H408 M378 123 H408 V122" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+        <path d="M471 100 V124" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+        <path d="M530 152 H552 V112 H564" stroke="#5b6b7c" fill="none" marker-end="url(#at)"/>
+
+        <text x="412" y="198" font-size="7.4" fill="#7b8a9a">Each output row is a weighted average of the value vectors.</text>
+        <text x="412" y="210" font-size="7.4" fill="#7b8a9a">Causal mask: position i may only attend to j ≤ i.</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 0.1 — Scaled dot-product attention.</b> The score matrix is quadratic in sequence length. The causal mask is what makes a decoder able to train on every next-token prediction in parallel while still preventing it from seeing the future.</figcaption>
+  </figure>
+
+  <p>The cost of attention is <i>O</i>(<i>n</i><sup>2</sup><i>d</i>) time and, naively, <i>O</i>(<i>n</i><sup>2</sup>) memory for the score matrix. FlashAttention and related kernels reduce memory traffic without changing the mathematics; they make long contexts practical but do not make them free. This quadratic term is the reason context length is a budget, a cost driver and a denial-of-service lever.</p>
+
+  <div class="onething"><b>In plain terms</b><br>Attention is a voting system. Every token asks a question (query), every token it is allowed to see advertises what it knows (key), and the winners contribute their content (value). The mask decides who is allowed to vote — in a causal decoder, only the current and earlier positions — and the softmax decides how strongly.</div>
+
+  <h2 id="p-tok-5">0.5 The transformer block</h2>
+
+  <p>A decoder block applies attention and a position-wise feed-forward network, each wrapped in a residual connection and a normalisation layer. The dominant modern arrangement is pre-normalisation:</p>
+
+  <div class="formula">
+    <span class="eq"><b>x</b> ← <b>x</b> + Attn(LN(<b>x</b>)) &nbsp;&nbsp;&nbsp; <b>x</b> ← <b>x</b> + MLP(LN(<b>x</b>))</span>
+    <span class="where">LN is LayerNorm or RMSNorm. The residual stream <b>x</b> is a shared communication channel: each block reads from it and writes an update back. This is why activation steering and "refusal direction" interventions can work — they edit the stream that every later block reads.</span>
+  </div>
+
+  <div class="formula">
+    <span class="eq">LayerNorm(<b>x</b>) = <b>γ</b> ⊙ (<b>x</b> − μ) / √(σ<sup>2</sup> + ε) + <b>β</b></span>
+    <span class="where">μ and σ<sup>2</sup> are the mean and variance across the feature dimension; γ and β are learned scale and shift. RMSNorm omits mean-centring and uses only the root mean square, which is cheaper and common in Llama-family models.</span>
+  </div>
+
+  <p>LayerNorm and RMSNorm compute their statistics from each example at both training and inference time, so they do not carry stored population statistics that can drift between the two. The train/serve mismatch risk usually attributed to "normalisation statistics" is principally a BatchNorm issue, where running means and variances estimated during training are reused at inference. BatchNorm is uncommon in transformer language models but appears in some vision and older architectures; verify which normalisation a target actually uses rather than assuming the risk is universal.</p>
+
+  <p>The feed-forward network is usually a two-layer MLP with a wider hidden dimension, or a gated variant such as SwiGLU:</p>
+
+  <div class="formula">
+    <span class="eq">MLP(<b>x</b>) = <b>W</b><sub>2</sub> σ(<b>W</b><sub>1</sub><b>x</b> + <b>b</b><sub>1</sub>) + <b>b</b><sub>2</sub></span>
+    <span class="where">For SwiGLU, MLP(<b>x</b>) = <b>W</b><sub>down</sub>( SiLU(<b>W</b><sub>gate</sub><b>x</b>) ⊙ (<b>W</b><sub>up</sub><b>x</b>) ). The gating multiplies two projections element-wise, which improves quality at similar parameter cost.</span>
+  </div>
+
+  <p>A useful parameter estimate for a dense decoder layer is about 12<i>d</i><sup>2</sup> (roughly 4<i>d</i><sup>2</sup> for attention projections and 8<i>d</i><sup>2</sup> for a SwiGLU MLP). At <i>d</i> = 4,096 that is about 200 million parameters per layer; 32 layers gives roughly 6.4 billion, plus embeddings and norms, which is the shape of an 8B model. Mixture-of-experts models replace the single MLP with a router and several experts, activating only a subset per token: total parameters grow, active parameters per token grow much less.</p>
+
+  <figure>
+    <svg viewBox="0 0 700 330" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs><marker id="bl" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#5b6b7c"/></marker></defs>
+      <g font-size="8.5">
+        <rect x="250" y="16" width="190" height="38" rx="3" fill="#eef7f5" stroke="#0f766e"/>
+        <text x="264" y="39" font-weight="bold" fill="#0f4f4a">Residual stream x</text>
+
+        <rect x="250" y="78" width="190" height="34" rx="3" fill="#eef2f6" stroke="#64748b"/>
+        <text x="264" y="99" fill="#33465a">LayerNorm / RMSNorm</text>
+
+        <rect x="250" y="132" width="190" height="44" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="264" y="151" font-weight="bold" fill="#7a3a08">Multi-head self-attention</text>
+        <text x="264" y="164" font-size="7.2" fill="#7a5a3a">causal · grouped KV · rotary positions</text>
+
+        <circle cx="345" cy="198" r="11" fill="#fff" stroke="#33465a"/>
+        <text x="340" y="202" font-size="11" fill="#33465a">+</text>
+
+        <rect x="250" y="228" width="190" height="30" rx="3" fill="#eef2f6" stroke="#64748b"/>
+        <text x="264" y="247" fill="#33465a">LayerNorm / RMSNorm</text>
+
+        <rect x="250" y="274" width="190" height="44" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="264" y="293" font-weight="bold" fill="#7a3a08">Feed-forward / SwiGLU</text>
+        <text x="264" y="306" font-size="7.2" fill="#7a5a3a">position-wise, expands to ~4d</text>
+
+        <path d="M345 54 V74" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <path d="M345 112 V128" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <path d="M345 176 V186" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <path d="M356 198 H410 V35 H444" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <text x="420" y="120" font-size="7.2" fill="#7b8a9a" transform="rotate(90 420 120)">residual add</text>
+        <path d="M345 209 V224" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <path d="M345 258 V270" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+
+        <text x="32" y="90" font-size="8" fill="#4a5a6b">One block.</text>
+        <text x="32" y="104" font-size="8" fill="#4a5a6b">Repeat 30–100×.</text>
+        <text x="32" y="126" font-size="7.4" fill="#7b8a9a">Every block reads and</text>
+        <text x="32" y="138" font-size="7.4" fill="#7b8a9a">writes the same stream.</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 0.2 — A pre-norm decoder block.</b> Attention moves information between positions; the MLP transforms each position independently; residuals let gradients and information bypass each sublayer. The repeated residual stream is the closest thing a transformer has to a working memory.</figcaption>
+  </figure>
+
+  <h2 id="p-tok-6">0.6 Logits, softmax and sampling</h2>
+
+  <p>After the final block the model applies a final normalisation and multiplies the last position's hidden state by the unembedding matrix to produce one logit per vocabulary entry. Softmax converts logits into a probability distribution; the application then selects a token according to its decoding policy.</p>
+
+  <div class="formula">
+    <span class="eq"><i>p</i><sub><i>i</i></sub> = exp(<i>z</i><sub><i>i</i></sub> / <i>T</i>) / Σ<sub><i>j</i></sub> exp(<i>z</i><sub><i>j</i></sub> / <i>T</i>)</span>
+    <span class="where"><i>z</i> are logits and <i>T</i> is temperature. <i>T</i> → 0 approaches greedy selection; <i>T</i> = 1 is the model's raw distribution; <i>T</i> &gt; 1 flattens it. Top-k restricts sampling to the <i>k</i> highest-probability tokens; top-p (nucleus) keeps the smallest set whose cumulative probability exceeds <i>p</i>; min-p keeps tokens above a fraction of the top token's probability.</span>
+  </div>
+
+  <p><b>Perplexity</b> is the exponentiated average negative log-likelihood of a sequence. It is the standard intrinsic measure of how well a model predicts text, and it is also a useful signal in privacy attacks: a model that assigns unusually low perplexity to a record may have memorised it.</p>
+
+  <div class="formula">
+    <span class="eq">PPL = exp( −(1/<i>N</i>) Σ<sub><i>t</i>=1</sub><sup><i>N</i></sup> ln <i>p</i>(<i>w</i><sub><i>t</i></sub> | <i>w</i><sub>&lt;<i>t</i></sub>) )</span>
+    <span class="where">Lower is better on the same tokenizer and corpus. Perplexity is not comparable across tokenizers, because the token sequence — and therefore <i>N</i> — changes.</span>
+  </div>
+
+  <p>Decoding settings are not cosmetic. They change the distribution of outputs an attacker sees, the stability of a jailbreak, the rate of false positives in a guardrail evaluation, and the reproducibility of a finding. A test report that omits temperature, top-p, seed, stop sequences and logit bias is not reproducible. Some APIs expose log-probabilities, which enables confidence-based attacks and model fingerprinting; others allow a <code>logit_bias</code> map, which can suppress or promote specific tokens and has been used to steer models away from refusal prefixes.</p>
+
+  <table class="compact">
+    <thead><tr><th style="width:22%">Control</th><th style="width:38%">What it does</th><th>Security relevance</th></tr></thead>
+    <tbody>
+      <tr><td><b>Temperature</b></td><td>Scales logits before softmax</td><td>Low temperature makes attacks more repeatable; high temperature increases variance and guardrail bypass by chance</td></tr>
+      <tr><td><b>Top-k / top-p</b></td><td>Truncates the sampling pool</td><td>Narrow decoding can make a refusal path deterministic or can exclude safe alternatives</td></tr>
+      <tr><td><b>Logit bias</b></td><td>Adds a fixed value to chosen token logits</td><td>Can suppress refusal tokens or force a tool-call marker; also a defence hook</td></tr>
+      <tr><td><b>Stop sequences</b></td><td>Ends generation on a string</td><td>Can truncate output before a safety check or before a complete tool call</td></tr>
+      <tr><td><b>Seed</b></td><td>Makes sampling repeatable where supported</td><td>Essential for evidence; not a guarantee across model versions</td></tr>
+      <tr><td><b>Grammar / JSON mode</b></td><td>Constrains tokens to a schema</td><td>Reduces malformed tool calls but not semantic misuse</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="p-tok-7">0.7 The KV cache and the economics of inference</h2>
+
+  <p>Generation has two phases. <b>Prefill</b> processes the whole prompt in parallel and fills the cache. <b>Decode</b> produces one token at a time; each new token attends to the cached keys and values of all previous tokens, so those tensors are reused rather than recomputed. The cache is what makes chat and long outputs economically viable — and what makes long contexts expensive.</p>
+
+  <div class="formula">
+    <span class="eq">KV bytes &asymp; 2 × <i>L</i> × <i>H</i><sub>kv</sub> × <i>d</i><sub>head</sub> × <i>b</i> × <i>n</i><sub>tokens</sub></span>
+    <span class="where"><i>L</i> layers, <i>H</i><sub>kv</sub> key/value heads (smaller than query heads under GQA), <i>d</i><sub>head</sub> head dimension, <i>b</i> bytes per element (2 for FP16/BF16), <i>n</i><sub>tokens</sub> cached tokens. The factor 2 is for both K and V.</span>
+  </div>
+
+  <p>For a Llama-3-8B-like model — 32 layers, 8 KV heads, head dimension 128, BF16 — the cache costs 2 × 32 × 8 × 128 × 2 = 131,072 bytes per token, or 128 KiB. An 8,192-token conversation therefore needs 1 GiB of KV cache; a 128,000-token context needs about 16 GiB, before any batching. A server that admits many long prompts can exhaust GPU memory from a handful of requests. This is why context length is a capacity, isolation and denial-of-service concern, not only a quality parameter.</p>
+
+  <p>Serving engines (vLLM's PagedAttention, TensorRT-LLM, TGI) allocate the cache in blocks, share identical prefixes, and batch requests continuously. <b>Prefix caching</b> and provider-side <b>prompt caching</b> reuse computation across requests. Correctly keyed by tenant and model version, this is a pure optimisation. Incorrectly keyed, it becomes a data-isolation bug: one request can observe timing or content effects of another request's prefix. Test caches with unique canary strings and cross-tenant probes, and treat "cache hit" telemetry as security-relevant.</p>
+
+  <h2 id="p-tok-8">0.8 Context windows and attention limits</h2>
+
+  <p>The context window is the maximum number of positions the model can process in one call. It is bounded by architecture (position encoding, attention cost), by memory (KV cache), and by the serving configuration (a provider may offer less than the model supports). Three distinct limits are often conflated:</p>
+  <ul>
+    <li><strong>Trained context.</strong> The length seen during pretraining and long-context tuning. Beyond it, quality degrades even if the API accepts the request.</li>
+    <li><strong>Effective context.</strong> The length at which the model still reliably uses information. Retrieval quality is often uneven: models may attend strongly to the beginning and end and poorly to the middle — the "lost in the middle" effect — and performance can decay gradually with length ("context rot").</li>
+    <li><strong>Application context.</strong> The budget left after the system prompt, tool definitions, retrieved chunks, memory and output reservation. This is usually far smaller than the advertised window.</li>
+  </ul>
+
+  <p>Applications handle overflow by truncating the oldest turns, the newest turns, retrieved chunks or tool outputs, or by summarising. Each policy is an attack surface. If a safety instruction lives at the start of the system prompt and the overflow policy drops the start, an attacker who can inflate the conversation can remove the control. If a summary is generated by the same model, an attacker who controls part of the content can influence what survives summarisation. If truncation happens after a guardrail check but before inference, the guardrail validated text the model never saw.</p>
+
+  <div class="box warn">
+    <span class="lbl">The assembled context is an attack surface</span>
+    <p>Anything that can write into the context — user turns, retrieved documents, tool results, memory, other agents, filenames, error messages — is inside the model's trust boundary. "The model should know that document is untrusted" is not a control. Provenance must be represented in prompt construction and enforced outside the model, because the model has no reliable way to verify where text came from. Treat the context as a place where trust boundaries must be made explicit, not as a boundary that the model itself can enforce.</p>
+  </div>
+
+  <h2 id="p-tok-9">0.9 What this means for a red team</h2>
+
+  <p>The token pipeline gives a tester a set of concrete, measurable probes. None of them requires access to weights, and most work against a black-box API.</p>
+
+  <table>
+    <thead><tr><th style="width:27%">Probe</th><th style="width:38%">What to do</th><th>What it tells you</th></tr></thead>
+    <tbody>
+      <tr><td><b>Tokenizer fingerprint</b></td><td>Send strings with known token counts for candidate tokenizers; compare usage, latency and echo behaviour</td><td>Model family, likely tokenizer version, whether a proxy rewrites input</td></tr>
+      <tr><td><b>Boundary test</b></td><td>Place a sensitive keyword across an unusual split, then vary spacing, case and Unicode</td><td>Whether lexical filters operate before or after tokenization, and how robust they are</td></tr>
+      <tr><td><b>Expansion test</b></td><td>Send short rare-script, emoji or byte sequences and measure token usage</td><td>Cost amplification and context-exhaustion potential</td></tr>
+      <tr><td><b>Template probe</b></td><td>Include role markers, end-of-turn strings and JSON control characters in user content</td><td>Whether the chat template escapes control tokens</td></tr>
+      <tr><td><b>Truncation probe</b></td><td>Put a canary instruction at the start, middle and end of a long context; inflate the context gradually</td><td>Overflow policy and whether safety instructions survive</td></tr>
+      <tr><td><b>Sampling sweep</b></td><td>Repeat the same payload at several temperatures and top-p values with fixed seed where possible</td><td>Variance of attack success; whether a result was luck</td></tr>
+      <tr><td><b>Cache probe</b></td><td>Use unique prefixes per tenant and measure latency or output differences across repeated prefixes</td><td>Prefix-cache isolation and cross-request leakage risk</td></tr>
+      <tr><td><b>Stop-sequence probe</b></td><td>Place a stop string before a required tool call or safety suffix</td><td>Whether output validation sees the complete generation</td></tr>
+    </tbody>
+  </table>
+
+  <p>Record the tokenizer and model version next to every result. A prompt that costs 900 tokens on one model may cost 1,400 on another; a payload that splits into harmless pieces under one vocabulary may survive intact under another. When a finding depends on token boundaries, include the exact token sequence in the evidence, not just the rendered string.</p>
+
+  <h2 id="p-tok-takeaways">0.10 Key takeaways</h2>
+  <ul>
+    <li>A model consumes token IDs, not text. Tokenization is model-specific; preprocessing can be lossy, and token boundaries matter. Both are visible to an attacker through cost and behaviour.</li>
+    <li>Embeddings turn IDs into vectors; position turns a set into a sequence; attention mixes information across positions; the MLP transforms each position.</li>
+    <li>Logits become probabilities through softmax, and decoding parameters decide which token is actually chosen. Reproducibility requires recording them.</li>
+    <li>The KV cache and context window are the physical limits behind cost, latency, truncation and long-context attacks.</li>
+    <li>Most "model" attacks are really pipeline attacks: tokenizer, template, truncation policy, cache key or output parser. Test the pipeline, not only the prompt.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Why can two systems show the same sentence to a human reviewer but feed different token sequences to their models?</li>
+      <li>Walk through byte-level BPE for the word <code>lowest</code> given the merge table in §0.1. Where could a keyword filter fail?</li>
+      <li>Explain why a causal mask is required for next-token training but a padding mask is not a security boundary.</li>
+      <li>Estimate the KV-cache cost of a 32,000-token conversation on a 32-layer, 8-KV-head, 128-dimension model in BF16. What does that imply for multi-tenant serving?</li>
+      <li>An application truncates the oldest messages when the context is full. How could an attacker use that to remove a safety instruction?</li>
+      <li>Name three decoding parameters that must be recorded for a jailbreak result to be reproducible, and explain what each changes.</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Foundation primer — How Neural Networks Learn</div>
+</section>

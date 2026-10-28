@@ -1,0 +1,75 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>Threat modelling is how you decide what to test before you start testing. You draw the system, mark what you trust and what you do not, list the assets an attacker would want, and trace the paths from an entry point to an impact. For AI systems, the diagram needs a few new elements: the model, the prompt assembly, the retrieval corpus, memory, tool identities and the boundary between your system and a model provider.</p>
+    <p>The most common mistake is to model the model and stop. A threat model that lists "prompt injection" without saying which content can reach which tool, under whose identity, is a slogan. The useful questions are concrete: what can an attacker write to? What does the application treat as trusted? What can the model do after it reads that content? What evidence would show it happened? What would stop it?</p>
+    <p>Score paths, not categories. A path that requires an authenticated insider, a poisoned document and a disabled filter is different from a path that any anonymous user can trigger with one email. Consider reachability, authority, data sensitivity, detectability and reversibility. Then map each path to a control and each control to evidence that it works. The output is a short list of decisions, not a hundred-page document.</p>
+    <ul>
+      <li><b>Assets:</b> data, models, credentials, tools, reputation, availability, regulatory obligations.</li>
+      <li><b>Entry points:</b> user input, uploads, retrieved content, tool results, inter-agent messages, provider APIs.</li>
+      <li><b>Trust boundaries:</b> where content changes principal, and where authority changes hands.</li>
+      <li><b>Paths:</b> influence → context → decision → capability → impact, with the controls on each edge.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>A threat model that does not name the authority granted to the model is incomplete. The interesting question is not "can it be tricked?" but "what can it do after it is tricked?"</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; from a diagram to a decision</span>
+
+    <p>A threat model is a structured argument that a system is safe enough for a stated purpose, plus a list of what would falsify that argument. For AI systems, the argument has to cover both conventional software risk and learned-behaviour risk. The method below is deliberately lightweight: it should take hours, not weeks, and it should produce artefacts that the test plan and the detection team can use directly.</p>
+
+    <h3>Step 1: the data-flow diagram</h3>
+    <p>Draw processes, data stores, external entities and data flows. Then add the AI-specific nodes: prompt assembler, model endpoint, retrieval index, embedding store, memory, tool runtime, agent orchestrator, model provider. Label every flow with the data class and the identity that carries it. Mark trust boundaries where the principal or the authority changes — not merely where the network changes.</p>
+
+    <p>A useful test for a finished diagram: can you point to the exact line where an attacker-controlled email becomes part of a prompt? Can you point to the line where the model's output becomes a tool call? Can you point to the identity that executes that call? If any of those is missing, the diagram is not finished.</p>
+
+    <h3>Step 2: STRIDE plus the AI extensions</h3>
+    <table>
+      <thead><tr><th style="width:17%">Category</th><th style="width:40%">Conventional question</th><th>AI extension</th></tr></thead>
+      <tbody>
+        <tr><td><b>Spoofing</b></td><td>Can an attacker impersonate a user or service?</td><td>Agent impersonation, forged tool result, model/provider substitution</td></tr>
+        <tr><td><b>Tampering</b></td><td>Can data or code be modified?</td><td>Corpus poisoning, adapter tampering, prompt-template modification, weight editing</td></tr>
+        <tr><td><b>Repudiation</b></td><td>Can an action be denied?</td><td>Missing prompt/tool-call logs; no attribution of model decisions</td></tr>
+        <tr><td><b>Information disclosure</b></td><td>Can data leak?</td><td>Prompt leakage, retrieval overreach, embedding inversion, model extraction</td></tr>
+        <tr><td><b>Denial of service</b></td><td>Can availability be harmed?</td><td>Context flooding, token amplification, recursive agents, GPU exhaustion</td></tr>
+        <tr><td><b>Elevation of privilege</b></td><td>Can authority be gained?</td><td>Confused deputy, tool-scope escalation, delegation amplification</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Step 3: attack paths as a graph</h3>
+    <p>Turn each plausible chain into a path. A path is a sequence of edges from an entry point to an impact, with a precondition on each edge. For example: attacker writes a support ticket → ticket is ingested into the RAG corpus → agent retrieves it for a target user → model follows the embedded instruction → agent calls the email tool with the user's session → data leaves the boundary.</p>
+
+    <div class="formula">
+      <span class="eq">P(path) ≈ Π<sub><i>e</i>∈path</sub> P(edge <i>e</i> succeeds | predecessors) &nbsp;&nbsp;&nbsp; Risk(path) = P(path) × Impact(path)</span>
+      <span class="where">If each factor genuinely conditions on the preceding successes, the product is the chain rule and is the correct joint probability — not an independence approximation. If instead you multiply marginal edge probabilities, you are assuming independence. That assumption is usually false, and the result is not generally an upper bound: positive correlation can make the product too low, negative correlation too high. Prefer measured end-to-end success rates; where you must estimate, state which probabilities are conditional and test the sensitivity of the ranking to the dependence assumption.</span>
+    </div>
+
+    <p>Score each path on five dimensions, each 1–5: <b>reachability</b> (how easy is the entry?), <b>authority</b> (what can the executing identity do?), <b>data sensitivity</b>, <b>detectability</b> (inverse: how likely is detection?) and <b>reversibility</b> (inverse: how hard is recovery?). A simple weighted sum is enough to rank; a precise formula invites false confidence. If the edge factors are genuine conditional probabilities and are reasonably calibrated, their product is a probability estimate. When the inputs are subjective scores or poorly calibrated guesses, treat the product as a ranking heuristic only, not as a calibrated probability.</p>
+
+    <div class="formula">
+      <span class="eq">Priority = 2·Reach + 3·Authority + 2·Data + 1·(6−Detect) + 1·(6−Reverse)</span>
+      <span class="where">Weights reflect that authority and data dominate in AI systems. Publish the weights and the rationale so the ranking can be challenged. A path that scores high on authority but low on reachability may still be the most important finding if the entry is an insider.</span>
+    </div>
+
+    <h3>Step 4: controls, evidence and residual risk</h3>
+    <p>For every path, name the control on each edge and the evidence that the control works. "WAF blocks injection" is not evidence; a test series with a measured bypass rate is. "Least privilege" is not evidence; the actual role, its scopes and a denied attempt are. The control-evidence chain is what turns a threat model into an assurance argument.</p>
+
+    <table>
+      <thead><tr><th style="width:24%">Path edge</th><th style="width:30%">Candidate control</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Content enters corpus</td><td>Ingestion review, provenance, signed documents</td><td>Sample audit, rejected-document log, signature verification rate</td></tr>
+        <tr><td>Content reaches prompt</td><td>Instruction hierarchy, delimiters, taint labels</td><td>Injection trial series with ASR and confidence interval</td></tr>
+        <tr><td>Model decides to act</td><td>Policy model, tool allowlist, output schema</td><td>Denied-call tests, malformed-output rate, bypass attempts</td></tr>
+        <tr><td>Tool executes</td><td>Per-action authZ, approval, spend cap, sandbox</td><td>Role diff, approval log, denied high-value call, sandbox escape test</td></tr>
+        <tr><td>Data leaves</td><td>Egress proxy, DLP, rendered-resource policy</td><td>Canary test, blocked-domain log, DNS/HTTP capture</td></tr>
+        <tr><td>Action is audited</td><td>Prompt/tool-call tracing, identity binding</td><td>Reconstruct a test action from logs alone</td></tr>
+      </tbody>
+    </table>
+
+    <p>Residual risk is the part that remains after controls. It should be stated explicitly, owned by a named person, and reviewed when the model, prompt, corpus or tool set changes. AI systems change constantly — a model update, a new connector, a new retrieval source — and a threat model is stale the moment one of those changes lands without a review.</p>
+
+    <h3>Step 5: the output</h3>
+    <p>A good threat model is five to fifteen pages: a diagram, an asset table, a ranked path list, a control-evidence table, a residual-risk statement and a short list of decisions requested. It should be readable by an engineering lead, a risk owner and an auditor without a translator. If it cannot fit in that shape, it is probably a test plan or a compliance mapping wearing a threat-model costume.</p>
+  </div>

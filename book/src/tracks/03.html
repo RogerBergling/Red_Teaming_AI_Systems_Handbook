@@ -1,0 +1,71 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>An agent is a language model in a loop with memory and tools. It reads a goal, assembles context, decides on an action, calls a tool, reads the result and repeats. That loop is what makes agents useful — and what turns a bad sentence into a bad action. The model may receive role, provenance and delimiter signals and can often distinguish a user request from an instruction embedded in a document. The problem is that it cannot reliably authenticate or enforce that distinction as a security boundary: both still arrive as text in the same context, and the signal is learned rather than guaranteed.</p>
+    <p>The main attack is therefore <b>prompt injection</b>. Direct injection comes from the user's own message. Indirect injection arrives inside content the agent processes: an email, a web page, a ticket, a PDF, a calendar invite, a code comment or another agent's reply. Indirect injection is the enterprise problem because the attacker never needs an account and the instruction can sit patiently until the agent reads it.</p>
+    <p>Injection becomes serious when the agent has <b>authority</b>: tools that spend money, change records, send messages, read private data or reach the internet. The dangerous combination is often called the "lethal trifecta": access to private data, exposure to untrusted content and an outbound channel. Treat this as a high-value threat-model heuristic, not a theorem. Two of the three properties can already produce a severe incident depending on the system, and all three do not automatically yield successful exfiltration if deterministic egress and authorisation controls are effective. The heuristic tells you where to look first and which control to test.</p>
+    <ul>
+      <li><b>Memory</b> can persist an instruction across sessions if writes are not attributed and reviewed.</li>
+      <li><b>Tools</b> execute with the agent's identity, not the user's intent; over-broad scopes turn a clever sentence into a privileged action.</li>
+      <li><b>Output</b> is an input to browsers, shells, databases and other models; unvalidated output is a classic injection vector.</li>
+      <li><b>Guardrails</b> raise the cost of attack; they do not establish trust. Layer them with least privilege, approvals, sandboxing and egress control.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>Prompt injection is not primarily a prompt problem. It is an authority problem. Fix the authority first, and the prompt becomes much less interesting.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; from a sentence to an action</span>
+
+    <p>Model the agent as a state machine. At step <i>t</i> the context <b>C</b><sub><i>t</i></sub> is assembled from the system policy, the conversation, retrieved content, long-term memory, tool descriptions and prior observations. The model produces a decision <b>d</b><sub><i>t</i></sub> = <i>f</i>(<b>C</b><sub><i>t</i></sub>); the runtime parses it into either a response or a tool call, executes the call with some identity, and appends the observation. An attacker succeeds when their content alters <b>d</b><sub><i>t</i></sub> in a way that produces an unauthorised effect.</p>
+
+    <div class="formula">
+      <span class="eq">Success = Influence(C<sub><i>t</i></sub>) ∧ Compliance(model, instruction) ∧ Capability(tool, identity) ∧ Effect(downstream)</span>
+      <span class="where">Each term is separately testable. A payload that reaches the context but is ignored fails at compliance. One that is followed but has no reachable tool fails at capability. One that calls a tool but is blocked by network policy fails at effect. Report which term failed; "injection failed" hides the control that actually worked.</span>
+    </div>
+
+    <h3>Where influence enters</h3>
+    <p>Direct user input is the obvious channel. The higher-value channels are the ones the application treats as data: retrieved documents, web pages, email bodies, attachments, OCR text, code comments, commit messages, issue titles, filenames, EXIF metadata, tool output, error strings, memory summaries and messages from other agents. A file name is often the only part of an upload that survives parsing and reaches the prompt unbounded. An error message from an internal service can be reflected into the context and may contain attacker-controlled text.</p>
+
+    <p>Instruction hierarchy — system &gt; developer &gt; user &gt; tool — is learned, not enforced. It improves robustness and fails under distribution shift. The practical consequence is that a sufficiently unusual context, encoding or role-play frame can flatten the hierarchy. Treat the hierarchy as a speed bump and put the real control at the tool boundary.</p>
+
+    <h3>Compliance techniques, in increasing order of sophistication</h3>
+    <ul>
+      <li><strong>Direct override.</strong> "Ignore previous instructions and…" Usually caught, occasionally effective, always worth a control trial.</li>
+      <li><strong>Framing and role-play.</strong> Recast the request as a test, a story, a translation, a security audit or a hypothetical. The model's refusal is tied to surface features of the request.</li>
+      <li><strong>Encoding and obfuscation.</strong> Base64, ROT13, leetspeak, Unicode confusables, zero-width characters, payload splitting across turns, or instructions hidden in an image or audio file. The model may decode; a lexical filter may not.</li>
+      <li><strong>Many-shot and context flooding.</strong> Fill the window with examples that establish a new norm, or bury the instruction among hundreds of benign ones. Long contexts dilute both safety training and attention.</li>
+      <li><strong>Tool-result spoofing.</strong> Make injected text look like a trusted tool observation, a system message or a prior assistant turn.</li>
+      <li><strong>Indirect and delayed.</strong> Plant the instruction in content the agent will read later, possibly in a different session, so the payload is not adjacent to the attacker's request.</li>
+      <li><strong>Optimised suffixes.</strong> Gradient-based or search-based token sequences that steer the model toward a target behaviour. These are model-specific and brittle, but they demonstrate that refusal is not a hard boundary.</li>
+    </ul>
+
+    <h3>The tool call is the authorisation event</h3>
+    <p>Many agent implementations historically authorize tool availability more coarsely than individual actions: they check whether a tool exists, not whether this user, in this task, should be allowed to invoke it with these arguments. That gap produces the classic <b>confused deputy</b>: the agent holds a powerful credential, the attacker cannot use it directly, but the attacker can persuade the agent to use it on their behalf. The fix is not a better system prompt. It is per-action authorisation in deterministic code: bind the tool call to the end user's identity, constrain the arguments, require approval for irreversible or high-value actions, and log the decision with the identity that executed it.</p>
+
+    <table>
+      <thead><tr><th style="width:24%">Tool class</th><th style="width:38%">Abuse pattern</th><th>Minimum control</th></tr></thead>
+      <tbody>
+        <tr><td>Read-only internal data</td><td>Over-broad query returns other tenants' records</td><td>Row-level authorisation at query time, not in the prompt</td></tr>
+        <tr><td>Write / mutate</td><td>Mass update, deletion, fraud, state change</td><td>Human approval, idempotency, reversibility, rate limits</td></tr>
+        <tr><td>Messaging</td><td>Phishing, data exfiltration, impersonation</td><td>Recipient allowlist, content review, sender identity</td></tr>
+        <tr><td>Network / browser</td><td>SSRF, beaconing, fetching attacker content</td><td>Egress proxy, domain allowlist, private-IP blocking</td></tr>
+        <tr><td>Code / shell</td><td>Arbitrary execution, persistence, credential theft</td><td>Sandbox, no host mounts, no cloud metadata, ephemeral identity</td></tr>
+        <tr><td>Payment / provisioning</td><td>Financial loss, resource abuse</td><td>Hard caps, dual approval, separate identity, anomaly alerts</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Exfiltration from a "text-only" agent</h3>
+    <p>An agent that can only emit text can still exfiltrate. The channel is whatever renders or transmits the text: a markdown image whose URL contains the secret, a link the user is encouraged to click, a tool call whose argument is a URL, an email draft, a calendar invite, a code block that a downstream system executes, a filename, a log line, or even response length and timing. If the agent can reach the internet, the simplest channel is a direct request to an attacker-controlled host. If it cannot, a rendered image or a link in the UI may be enough, because the user's browser makes the request.</p>
+
+    <p>Test exfiltration with a canary, not with real data: place a unique token in a private document, ask the agent to summarise something benign, and see whether the token appears in any outbound request. Monitor DNS, HTTP egress, rendered-resource loads and tool arguments. The absence of the token in the visible answer does not mean it did not leave.</p>
+
+    <h3>Expected loss and containment</h3>
+    <div class="formula">
+      <span class="eq">EL = Σ<sub><i>i</i></sub> <i>p</i><sub><i>i</i></sub> × <i>I</i><sub><i>i</i></sub> &nbsp;&nbsp;&nbsp; Residual EL = Σ<sub><i>i</i></sub> <i>p</i><sub><i>i</i></sub> × <i>I</i><sub><i>i</i></sub> × (1 − <i>c</i><sub><i>i</i></sub>)</span>
+      <span class="where"><i>p</i><sub><i>i</i></sub> is the measured success probability for action class <i>i</i>, <i>I</i><sub><i>i</i></sub> its business impact, and <i>c</i><sub><i>i</i></sub> the measured control efficacy. This turns a pile of jailbreak results into a number a risk owner can compare with the cost of a control.</span>
+    </div>
+
+    <p>Containment beats detection for agent risk because the action is often irreversible by the time a detector fires. The strongest controls are structural: give the agent a narrow identity, make high-impact tools require a human, isolate untrusted content from tool-capable turns, and constrain egress. Detection then catches what containment misses, and the two together produce a defensible system rather than a hopeful one.</p>
+  </div>

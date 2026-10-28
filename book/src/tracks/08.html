@@ -1,0 +1,79 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>Every AI system is assembled from parts made by someone else: a base model, an adapter, a tokenizer, a dataset, a Python package, a container image, a serving engine. Each part has an owner, a version and a supply chain. If an attacker can compromise any part before it reaches you, they may not need to attack your application at all.</p>
+    <p>Model files deserve special attention because some formats can execute code when loaded. Pickle-based checkpoints — common in PyTorch <code>.bin</code> and <code>.pt</code> files — can reconstruct arbitrary Python objects, and a crafted file could run commands on load under the loader's legacy/default behaviour. Since PyTorch 2.6, <code>torch.load</code> defaults to <code>weights_only=True</code>, which blocks most of that path; older versions, explicit <code>weights_only=False</code>, and other artefact types may still be unsafe. Safetensors was created to avoid this: it stores tensors and metadata and does not execute code. A model from a public hub is not a passive data file unless you have verified the format, the loader arguments and the source.</p>
+    <p>Datasets are the second supply chain. Poisoned training data can install a backdoor that survives fine-tuning and only activates on a rare trigger. A malicious adapter can change behaviour without touching the base model. A typosquatted package or a dependency-confusion attack can run at install time. A compromised container image can ship a miner, a credential stealer or a reverse shell alongside the model.</p>
+    <ul>
+      <li><b>Verify provenance:</b> publisher, signature, hash, model card, licence and training data statement.</li>
+      <li><b>Prefer safe formats:</b> safetensors or GGUF over pickle; scan anything that can deserialise.</li>
+      <li><b>Pin and isolate:</b> exact versions, private registries, no install-time scripts, least-privilege build identities.</li>
+      <li><b>Test behaviour, not just files:</b> a clean scan does not prove the absence of a backdoor.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>Treat model loading as a code-execution boundary until you understand the format, the loader and the provenance. Provenance proves origin and integrity, not that the artefact is benign; "it came from a popular hub" is not a provenance control.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; the artefact is the attack</span>
+
+    <p>AI supply chains have more artefact types than ordinary software, and each has its own execution semantics. The security question is always the same: <em>what happens when this artefact is loaded, and who could have changed it before I loaded it?</em></p>
+
+    <table>
+      <thead><tr><th style="width:20%">Artefact</th><th style="width:33%">Load behaviour</th><th>Primary risk</th></tr></thead>
+      <tbody>
+        <tr><td><b>Pickle</b> (<code>.pt</code>, <code>.bin</code>)</td><td>Arbitrary object reconstruction; <code>GLOBAL</code>/<code>REDUCE</code> opcodes can call functions</td><td>Remote code execution at load time</td></tr>
+        <tr><td><b>Safetensors</b></td><td>Header + raw tensor buffers; no code execution</td><td>Malicious values, but not arbitrary code; verify shape and source</td></tr>
+        <tr><td><b>GGUF</b></td><td>Quantised tensors and metadata for llama.cpp-style runtimes</td><td>Parser bugs; malicious metadata; verify origin</td></tr>
+        <tr><td><b>ONNX</b></td><td>Graph of operators executed by a runtime</td><td>Custom operators, parser exploits, model behaviour</td></tr>
+        <tr><td><b>TensorRT / engine files</b></td><td>Precompiled kernels for specific hardware</td><td>Opaque binaries; hard to audit; version lock-in</td></tr>
+        <tr><td><b>Adapter / LoRA</b></td><td>Small weight delta applied to a base</td><td>Behaviour change, hidden payload, base mismatch</td></tr>
+        <tr><td><b>Tokenizer files</b></td><td>Vocabulary, merges and configuration</td><td>Boundary manipulation, special-token injection, parser bugs</td></tr>
+        <tr><td><b>Dataset / loader script</b></td><td>Often executes Python to build or download data</td><td>Code execution, poisoning, silent substitution</td></tr>
+        <tr><td><b>Container image</b></td><td>Full userspace, entrypoint and dependencies</td><td>Backdoors, miners, credential theft, vulnerable base</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Why pickle is dangerous, precisely</h3>
+    <p>Python's pickle format is a stack machine. Opcodes such as <code>GLOBAL</code> push a callable by module and name; <code>REDUCE</code> calls it with arguments from the stack. Historically, a model loader calling <code>torch.load()</code> without restriction would execute those calls while reconstructing the object; this is the semantics of pickle, not a bug in PyTorch. Since PyTorch 2.6, <code>torch.load</code> defaults to <code>weights_only=True</code> when <code>pickle_module</code> is not supplied. The restricted unpickler only allows the functions and classes needed for tensor state dictionaries and primitive containers, and does not dynamically import modules. That blocks the classic <code>os.system</code> canary in the default case, but it is not a complete security boundary: allowlisted globals, parser bugs and non-pickle artefacts still matter. Use <code>weights_only=True</code> explicitly where you need to support older versions, prefer safetensors, and treat any pickle file from an untrusted source as executable when a legacy or unsafe load path exists.</p>
+
+    <pre><code># Inspect before loading — never load an untrusted pickle directly.
+python - &lt;&lt;'PY'
+import pickletools, sys
+with open(sys.argv[1], "rb") as f:
+    pickletools.dis(f)
+PY
+
+# Prefer safe tensor formats and verify the publisher's hash.
+sha256sum model.safetensors
+cosign verify-blob --signature model.safetensors.sig \
+  --certificate model.safetensors.pem model.safetensors</code></pre>
+
+    <p>Scanning helps but is not sufficient. A pickle can hide its payload in a nested object, an encoded string or a legitimate-looking function call. Static scanners miss novel opcodes and dynamically constructed payloads. The durable controls are provenance and isolation: download from a pinned source, verify a signature, load in a sandbox with no credentials and no network, and only then move the artefact to a serving environment.</p>
+
+    <h3>Provenance and the SLSA-style chain</h3>
+    <p>A model is not just a file; it is a sequence of build steps. A useful provenance record answers: who trained it, on what data, with what code, on what hardware, and who published it? The software analogue is SLSA: a signed statement that links an artefact to a builder and a source revision. AI-BOMs extend the idea to datasets, base models, adapters and licences. Without a chain, "the hash matches" only proves the file is the one you downloaded, not that it is the one the publisher intended.</p>
+
+    <div class="formula">
+      <span class="eq">Trust(artefact) = Verify(publisher) ∧ Verify(integrity) ∧ Verify(build) ∧ Verify(behaviour)</span>
+      <span class="where">Integrity without publisher identity is weak; publisher identity without build provenance is a promise; behaviour verification catches what the paperwork misses. All four are needed for a high-assurance deployment.</span>
+    </div>
+
+    <h3>Backdoors and poisoning</h3>
+    <p>A backdoor is a learned conditional behaviour: normal on clean inputs, targeted on a trigger. It can be installed through poisoned pretraining data, a poisoned fine-tuning set, a malicious adapter or direct weight editing. Detection is hard because the model's clean performance is unaffected. Practical checks include:</p>
+    <ul>
+      <li><strong>Trigger search.</strong> Try rare tokens, phrases, formatting, languages and metadata patterns; measure output changes against a clean baseline.</li>
+      <li><strong>Activation clustering.</strong> Compare internal representations for suspected trigger inputs against clean inputs; a tight cluster that maps to one output is suspicious.</li>
+      <li><strong>Spectral signatures.</strong> Analyse weight matrices for anomalous directions associated with a target class.</li>
+      <li><strong>Clean fine-tuning.</strong> Briefly fine-tune on clean data and see whether a suspected behaviour disappears; a robust backdoor may survive.</li>
+      <li><strong>Data provenance review.</strong> The most reliable signal is often the dataset: who contributed it, when, and whether the contribution was reviewed.</li>
+    </ul>
+
+    <p>No single method proves absence. Report backdoor risk as a confidence level based on provenance, testing and monitoring, not as a binary "clean" result. For high-impact systems, run a clean-room evaluation with a red-team suite that includes trigger-like inputs and out-of-distribution prompts.</p>
+
+    <h3>Supplier and provider risk</h3>
+    <p>Using a hosted model does not remove the supply chain; it changes who owns which part. The provider controls weights, serving stack, safety filters and logging. The customer controls prompts, data, tools, identity and configuration. Ask for the provider's model versioning, deprecation policy, data retention, subprocessor list, incident history and evaluation methodology. Test the boundary: does a model update change refusal behaviour? Does a regional endpoint behave differently? Does the provider's content filter see the same text the model does? These are supply-chain questions even though no file is downloaded.</p>
+
+    <p>Finally, treat the build environment as part of the supply chain. A compromised CI runner can publish a signed malicious artefact with perfect provenance. Separate build and release identities, require review for release jobs, pin dependencies, and monitor registry pushes. The strongest signature is worthless if the signer can be tricked.</p>
+  </div>

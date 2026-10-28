@@ -1,0 +1,53 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>An AI system is not just a model. It is a model plus a prompt, a retrieval corpus, a set of tools, a memory, an identity and a pile of ordinary infrastructure. The model is the part that reads language and makes judgement calls; everything around it decides what it can read, what it can remember and what it is allowed to do.</p>
+    <p>That composition changes the security problem in three ways. First, <b>text becomes an input channel</b>: a web page, an email, a PDF or another agent's message can carry instructions, and the model may follow them. Second, <b>behaviour is learned rather than specified</b>: if "refund above €500 needs approval" exists only in a prompt, there may be no deterministic branch enforcing it, so testing has to sample the model's interpretation <em>and</em> verify the authorisation logic around it. Third, <b>language can become authority</b>: once the model can call tools, a sentence may move money, send mail or change records. The model may interpret intent; the surrounding system must remain the final authority on whether the action is permitted.</p>
+    <p>The practical method is familiar to any security team, with new objects. Map the data flows, mark the trust boundaries, identify what an attacker can influence, and test whether influence becomes action. Report rates rather than anecdotes: run each attack many times, record the exact assembled prompt and the tool calls, and give a confidence interval. A single successful jailbreak is a demo; a measured attack success rate is evidence.</p>
+    <ul>
+      <li><b>Assets:</b> models, adapters, prompts, corpora, embeddings, logs, identities, tools.</li>
+      <li><b>Trust boundaries:</b> user input, retrieved content, tool output, memory, inter-agent messages, the model provider.</li>
+      <li><b>Impact:</b> disclosure, fraudulent action, persistence, cost, reputational and legal harm.</li>
+      <li><b>Evidence:</b> assembled prompt, retrieved IDs, tool arguments, response, timestamp, model version.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>Ask not only "what can it say?" but "what can it do, with whose credentials, and who checks the action?" Most serious AI incidents are authority failures wearing a language-model costume.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; why composition defeats point controls</span>
+
+    <p>A useful formalisation is a directed graph of data and authority. Nodes are components: user, application, prompt assembler, model, retrieval index, memory, tool, downstream system. Edges carry two labels: <em>data</em> (what content can flow) and <em>authority</em> (which identity executes). An attack is a path from an <em>influence</em> node the adversary controls to an <em>impact</em> node they care about, where every edge is traversable with the controls actually deployed.</p>
+
+    <div class="formula">
+      <span class="eq">Path succeeds ⇔ influence reaches context ∧ model follows it ∧ a capability executes it ∧ impact is observable</span>
+      <span class="where">Remove any conjunct and the path fails. This is why "the model refused" is only one of four questions, and why a technically successful injection with no reachable capability may be a low-severity finding.</span>
+    </div>
+
+    <p>Three graph properties predict most real incidents. <b>Reachability</b>: how many edges separate attacker-controlled content from the context window? <b>Authority</b>: what is the union of scopes available along the path? <b>Observability</b>: can the defender reconstruct the path afterwards from logs? A system can be reachable and authorised but still defensible if every action is attributable and reversible; it can be unreachable but still dangerous if a single poisoned document is ingested by a batch job with broad credentials.</p>
+
+    <h3>Measuring attack success without lying to yourself</h3>
+    <p>For a trial series with <i>k</i> successes in <i>n</i> attempts, the point estimate is <i>p̂</i> = <i>k</i>/<i>n</i>. The Wilson interval is preferable to the normal approximation when <i>p̂</i> is near 0 or 1, which is exactly where security results live:</p>
+
+    <div class="formula">
+      <span class="eq">CI<sub>95%</sub> = ( <i>p̂</i> + <i>z</i><sup>2</sup>/2<i>n</i> ± <i>z</i>√( <i>p̂</i>(1−<i>p̂</i>)/<i>n</i> + <i>z</i><sup>2</sup>/4<i>n</i><sup>2</sup> ) ) / ( 1 + <i>z</i><sup>2</sup>/<i>n</i> )</span>
+      <span class="where"><i>z</i> = 1.96 for 95%. With 0 successes in 20 trials the upper bound is still about 16%, so "it never worked" is not a strong claim. With 20 successes in 20 trials the lower bound is about 84%, not 100%.</span>
+    </div>
+
+    <p>Keep the trial unit honest. If you vary phrasing, temperature and retrieval document between attempts, you are sampling a mixture, not estimating the success rate of one technique. Vary one factor at a time, hold the control condition fixed, and record the full factor set. A control that fails tells you the harness is broken before it tells you anything about the target.</p>
+
+    <h3>Risk is authority times reachability times data</h3>
+    <p>A compact scoping heuristic for the first day is:</p>
+    <div class="formula">
+      <span class="eq">Risk ≈ P(influence) × Authority × Data sensitivity × Reversibility<sup>−1</sup></span>
+      <span class="where">P(influence) is the measured or estimated success rate; Authority is the effective scope of the executing identity; Data sensitivity is the classification of what can be read or changed; Reversibility penalises actions that cannot be undone. The product is a prioritisation aid, not a precise score.</span>
+    </div>
+
+    <p>This is why an injection that exposes a public FAQ is not the same finding as an injection that issues a refund. Both may have the same <i>P</i>(influence); they differ by three orders of magnitude in authority and impact. Report them separately, and resist the urge to average them into a single "AI risk score" that no system owner can act on.</p>
+
+    <h3>The evidence record is part of the attack</h3>
+    <p>The assembled prompt is the artefact that matters. The text the user typed is not what the model saw: templates, retrieved chunks, tool definitions, memory and formatting all change it. Store the assembled prompt by reference, the retrieved document IDs, the exact tool calls and their arguments, the raw response, the model version and the decoding parameters. Hash the evidence bundle and keep the hash outside the bundle. Without this, a failed reproduction is indistinguishable from a fixed target, and a successful one is indistinguishable from a lucky sample.</p>
+
+    <p>Finally, distinguish <em>capability</em> from <em>action</em>. A model that can describe how to call a tool has not called it. A model that emits a tool call has not necessarily had it executed. A tool that executes may have been scoped to a sandbox. Each step is a separate finding with a separate severity, and each needs its own evidence. The most common reporting error in AI engagements is collapsing all three into "the model was jailbroken".</p>
+  </div>

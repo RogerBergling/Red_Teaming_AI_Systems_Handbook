@@ -1,0 +1,221 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Module 06</span>
+    <h1 id="m6">Attacking Embeddings</h1>
+    <p class="dek">Vectors are not opaque. Recovering text, proving membership and manipulating similarity in the data layer beneath every RAG system.</p>
+  </div>
+
+  <div class="objectives">
+    <div class="lbl">Learning objectives</div>
+    <ul>
+      <li>Explain what an embedding represents and why it should be treated as sensitive data.</li>
+      <li>Perform embedding inversion against a known encoder and measure recovery quality.</li>
+      <li>Carry out membership and attribute inference against a vector index.</li>
+      <li>Identify vector database exposures and similarity-oracle leakage.</li>
+      <li>Explain embedding-space poisoning and collision attacks against retrieval.</li>
+      <li>Apply controls that reduce inversion, inference and cross-tenant leakage without destroying utility.</li>
+    </ul>
+  </div>
+
+  <p class="lede">An embedding is a compressed representation of content — a point in a high-dimensional space where proximity means semantic similarity. For years, embeddings were treated as a privacy-preserving representation: useful for search, harmless if leaked. That assumption is wrong. Published inversion methods reconstruct much of the original text from its vector, and the vector database is often the least-protected store in an AI stack.</p>
+
+  <p>This module sits beneath RAG. Module 5 asked what an attacker can do by controlling documents and queries. This module asks what they can learn from the vectors themselves — and what happens when the vector layer is compromised, queried without limits, or shared across tenants.</p>
+
+  <h2 id="m6-what">6.1 What an embedding is, and what it leaks</h2>
+
+  <p>An embedding model <em>E</em> maps an input <em>x</em> (text, image, audio) to a vector <em>e ∈ R<sup>d</sup></em>, typically 384 to 3072 dimensions. Retrieval compares vectors by cosine similarity or inner product. The geometry encodes semantic relationships: paraphrases cluster, topics form regions, and directions can correspond to properties such as sentiment, language or formality.</p>
+
+  <p>Three properties make embeddings security-relevant:</p>
+  <ul>
+    <li><strong>They are computed from the data, not necessarily trained on it.</strong> An embedding is produced at inference by applying a pretrained encoder to the document. The encoder can embed a completely novel document it never saw during training. The vector contains information about that document because it is a function of the document, not because the encoder was trained on that particular document. That distinction matters for membership inference and for how you describe the privacy risk.</li>
+    <li><strong>They are stored in bulk.</strong> A vector database holds every chunk of every document the pipeline has ever ingested, often with metadata, sometimes with the original text in a payload field.</li>
+    <li><strong>They are treated as low-sensitivity.</strong> Teams that would never expose a document will expose its vectors, because vectors "are just numbers". Access control, encryption and logging are frequently weaker on the vector store than on the source system.</li>
+  </ul>
+
+  <div class="box note">
+    <span class="lbl">Legal note</span>
+    <p>European data-protection authorities have signalled that encoded or machine-readable representations are not automatically anonymous, and that AI models trained on personal data require a case-by-case assessment. The EDPB's <i>Opinion 28/2024 on certain data protection aspects related to the processing of personal data in the context of AI models</i> states that whether such a model is anonymous depends on the circumstances, including the means reasonably likely to be used to identify individuals. Whether an embedding derived from personal data is itself personal data is therefore a jurisdiction-specific legal question, not a settled global rule; other regulators may take a different view. The operational point stands: treating a vector store as outside privacy controls is not a defensible default, and the legal position should be confirmed for the relevant jurisdiction rather than assumed.</p>
+  </div>
+
+  <h2 id="m6-inversion">6.2 Embedding inversion</h2>
+
+  <p>Inversion asks: given <em>e = E(x)</em>, recover <em>x</em> or a close approximation. The attack has two variants.</p>
+
+  <h3>White-box inversion</h3>
+  <p>The attacker has the encoder — because it is public, because it was stolen, or because the target uses an open-weight embedding model. With gradient access, inversion becomes an optimisation problem:</p>
+
+  <pre>find x* such that  E(x*) ≈ e,  while x* remains fluent and plausible
+
+initialise x0 from a language-model prior
+repeat:
+    e_t = E(x_t)
+    x_{t+1} = LM_correct(x_t, e - e_t)   # predict a correction from the residual</pre>
+
+  <p>The correction model is trained on pairs of (text, embedding residual), so it learns to translate a vector difference into plausible token edits. This is the approach behind the vec2text line of research, which demonstrated that short text snippets can be recovered with high exact-match rates and that longer passages can be reconstructed approximately through iterative refinement. The practical lesson is not the exact percentage; it is that <strong>a vector is a lossy encoding of its input, and lossy does not mean one-way</strong>.</p>
+
+  <h3>Black-box inversion</h3>
+  <p>If the attacker can query the encoder but not inspect it, they can train a surrogate on input–output pairs, or use a generic language model to propose candidates and rank them by similarity to the target vector. A nearest-neighbour attack is surprisingly effective when the attacker has a related corpus: embed a large pool of candidate texts, find the closest vectors to the target, and use the top candidates as seeds for refinement. The attack degrades with dimensionality reduction and noise, but rarely to zero.</p>
+
+  <figure>
+    <svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs>
+        <marker id="a6" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7b8a9a"/></marker>
+      </defs>
+      <g font-size="8">
+        <rect x="20" y="40" width="120" height="52" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="32" y="59" font-weight="bold" fill="#33465a">Stolen vectors</text>
+        <text x="32" y="72" font-size="7.2" fill="#5b6b7c">index dump, API,</text>
+        <text x="32" y="83" font-size="7.2" fill="#5b6b7c">backup, logs</text>
+
+        <rect x="170" y="40" width="130" height="52" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="182" y="59" font-weight="bold" fill="#0f4f4a">Candidate pool</text>
+        <text x="182" y="72" font-size="7.2" fill="#3d5a5a">public corpus,</text>
+        <text x="182" y="83" font-size="7.2" fill="#3d5a5a">domain documents</text>
+
+        <rect x="330" y="40" width="120" height="52" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="342" y="59" font-weight="bold" fill="#7a3a08">Nearest neighbours</text>
+        <text x="342" y="72" font-size="7.2" fill="#7a5a3a">cosine / inner</text>
+        <text x="342" y="83" font-size="7.2" fill="#7a5a3a">product search</text>
+
+        <rect x="480" y="40" width="120" height="52" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="492" y="59" font-weight="bold" fill="#7a3a08">LLM refinement</text>
+        <text x="492" y="72" font-size="7.2" fill="#7a5a3a">propose, embed,</text>
+        <text x="492" y="83" font-size="7.2" fill="#7a5a3a">compare, iterate</text>
+
+        <rect x="620" y="40" width="65" height="52" rx="3" fill="#0f2233" stroke="#0f2233"/>
+        <text x="630" y="59" font-weight="bold" fill="#ffffff">Recovered</text>
+        <text x="630" y="72" font-size="7.2" fill="#a9bccd">text or</text>
+        <text x="630" y="83" font-size="7.2" fill="#a9bccd">attributes</text>
+
+        <g stroke="#7b8a9a" stroke-width="0.8">
+          <path d="M140 66 H167" marker-end="url(#a6)"/>
+          <path d="M300 66 H327" marker-end="url(#a6)"/>
+          <path d="M450 66 H477" marker-end="url(#a6)"/>
+          <path d="M600 66 H617" marker-end="url(#a6)"/>
+        </g>
+
+        <rect x="20" y="130" width="665" height="92" rx="3" fill="#f7f8fa" stroke="#dde3e9"/>
+        <text x="34" y="148" font-weight="bold" fill="#33465a">What success depends on</text>
+        <text x="34" y="164" font-size="7.4" fill="#5b6b7c">Encoder availability · vector dimensionality · text length · domain specificity · whether metadata is stored alongside the vector · query rate limits · presence of noise</text>
+        <text x="34" y="180" font-size="7.4" fill="#5b6b7c">Short, formulaic text (names, addresses, IDs, boilerplate) inverts far more reliably than long prose. Sensitive records are often short and formulaic.</text>
+        <text x="34" y="196" font-size="7.4" fill="#5b6b7c">Cross-modal encoders (image–text) permit reconstruction of images from their embeddings, not just captions.</text>
+        <text x="34" y="212" font-size="7.4" fill="#5b6b7c">Even partial recovery — a name, an amount, a project codename — is often enough to prove a disclosure.</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 6.1 — Inversion as a search problem.</b> With the encoder available, refinement is iterative. Without it, nearest-neighbour search over a related corpus provides a strong starting point.</figcaption>
+  </figure>
+
+  <h2 id="m6-inference">6.3 Membership, attribute and property inference</h2>
+
+  <p>Inversion recovers content. Inference recovers facts <em>about</em> content or about the model's training population — often enough to cause harm without reconstructing a single document.</p>
+
+  <h3>Membership inference</h3>
+  <p>Two different questions are often conflated under "membership inference". <b>Index membership</b> asks whether a specific document is present in a particular vector index or retrieval corpus. <b>Training-set membership</b> asks whether a record was used to train the encoder or language model. They have different adversary access, signals, privacy meanings, mitigations and experimental designs.</p>
+
+  <p>For <b>index membership</b>, the attacker has a candidate text and access to similarity scores or search results. If the index is a customer database, membership itself is sensitive: "is this person a customer of the clinic?" is a disclosure even without the record. Attacks exploit the fact that a member's stored vector is usually an exact or near-exact match for the query embedding, while a non-member's paraphrase is farther away, and that score distributions differ. Threshold attacks work when scores are exposed; shadow-model attacks work when only decisions are exposed. The lab in this chapter is primarily an index-membership experiment.</p>
+
+  <p>For <b>training-set membership</b>, the attacker typically probes the model itself and uses differences in loss, confidence or likelihood between examples the model saw during training and examples it did not. Shadow-model attacks calibrate that signal using a reference model trained on data the attacker controls. This is a different threat: an attacker might infer that a record was in the encoder's training corpus without that record ever being placed in the index, or the reverse. Do not report one as evidence of the other.</p>
+
+  <h3>Attribute inference</h3>
+  <p>Vectors cluster by topic, language, author style, sentiment and sometimes demographic correlates. An attacker with a labelled reference set can train a classifier on embeddings and predict attributes of unknown vectors: industry, seniority, health topic, political leaning, authorship. This does not require inversion and is robust to moderate noise.</p>
+
+  <h3>Property inference</h3>
+  <p>At the population level, an attacker can learn properties of the corpus: how many documents mention a merger, which departments have the most incidents, whether a particular vendor appears. Cluster analysis and centroid inspection reveal structure even when individual records are protected.</p>
+
+  <h3>Model extraction</h3>
+  <p>If the embedding API is exposed, an attacker can query it with a large corpus and train a surrogate that approximates the target. The surrogate enables offline inversion, membership testing and transferable adversarial inputs — and it is a stolen asset in its own right. Rate limits raise the cost but rarely prevent extraction over time.</p>
+
+  <h2 id="m6-vectordb">6.4 Attacking the vector database</h2>
+
+  <p>The vector store is a database with an unusual query language: similarity. Common exposures:</p>
+
+  <ul>
+    <li><strong>Unauthenticated APIs.</strong> Qdrant, Weaviate, Chroma and Milvus are frequently deployed without authentication on internal networks, and sometimes on the internet. Collection listing alone reveals the shape of the corpus.</li>
+    <li><strong>Payload fields.</strong> Many deployments store the original chunk text alongside the vector for convenience. In that case, no inversion is required — the database is the document store.</li>
+    <li><strong>Snapshots and backups.</strong> Object storage buckets containing index snapshots are often less protected than the live service, and they contain everything.</li>
+    <li><strong>Similarity oracle.</strong> Even when direct reads are blocked, a search endpoint that returns scores and IDs lets an attacker probe membership and reconstruct content iteratively.</li>
+    <li><strong>Cross-tenant queries.</strong> A missing tenant filter exposes neighbours from other customers; the nearest-neighbour result itself is the leak.</li>
+    <li><strong>Metrics and dashboards.</strong> Prometheus endpoints, admin UIs and debug routes expose collection names, vector counts, dimensions and sometimes sample payloads.</li>
+  </ul>
+
+  <h2 id="m6-poison">6.5 Embedding-space poisoning</h2>
+
+  <p>Module 5 covered corpus poisoning through content. Embeddings add a subtler variant: content crafted so that its vector lands near a target concept, or so that it displaces a legitimate document in ranking. Because retrieval depends on geometry, an attacker who can add vectors can shape the neighbourhood.</p>
+
+  <p>Techniques include <strong>collision attacks</strong> (find text whose embedding is close to a target query or document), <strong>hubness exploitation</strong> (some vectors are nearest neighbours to many queries; attackers can create such hubs), and <strong>backdoor triggers</strong> (a rare phrase that maps to an attacker-favoured region). If the attacker can also influence the embedding model — through a fine-tune or a swapped model — the entire geometry can be shifted, which is a supply-chain attack covered in Module 8.</p>
+
+  <p>Detection is difficult because poisoned vectors look like normal vectors. The practical controls are provenance (who added this content, when and from where) and behavioural testing (does this document appear for queries it should not match?).</p>
+
+  <div class="box defender">
+    <span class="lbl">Defender's view — treat vectors as copies of the data</span>
+    <p>If a document is confidential, its embedding is confidential at the same level. That means the vector store inherits the source's classification, access control, encryption, retention and audit requirements. The simplest way to enforce this is to store vectors in the same trust domain as the source and to keep the original text out of the vector payload unless it is needed and protected.</p>
+  </div>
+
+  <h2 id="m6-controls">6.6 Controls</h2>
+
+  <table>
+    <thead><tr><th style="width:25%">Control</th><th style="width:45%">Implementation</th><th>Limitation</th></tr></thead>
+    <tbody>
+      <tr><td><b>Classify vectors as data</b></td><td>Same classification, ACLs and retention as the source document</td><td>Requires metadata discipline</td></tr>
+      <tr><td><b>Authenticate the store</b></td><td>mTLS or strong auth, network isolation, no public endpoints</td><td>Insider and misconfiguration risk remains</td></tr>
+      <tr><td><b>Encrypt at rest and in transit</b></td><td>Volume encryption plus application-level encryption for sensitive collections</td><td>Does not protect against a query-capable attacker</td></tr>
+      <tr><td><b>Do not return raw scores</b></td><td>Round, bucket or omit similarity scores; return only authorised results</td><td>Degrades ranking transparency</td></tr>
+      <tr><td><b>Rate limit and monitor</b></td><td>Per-identity query budgets; alert on enumeration and systematic probing</td><td>Slow attacks stay under thresholds</td></tr>
+      <tr><td><b>Tenant isolation</b></td><td>Separate collections or enforced predicates; test cross-tenant nearest neighbours</td><td>Shared embedding model still leaks via scores</td></tr>
+      <tr><td><b>Minimise payload</b></td><td>Store text in the source system; keep only an opaque reference in the vector store</td><td>Adds lookup latency</td></tr>
+      <tr><td><b>Noise and reduction</b></td><td>DP noise, quantisation or dimensionality reduction to blunt inversion</td><td>Utility loss; determined attackers can still infer</td></tr>
+      <tr><td><b>Retention</b></td><td>Delete vectors when the source is deleted; rebuild indexes on schedule</td><td>Backups and caches persist</td></tr>
+      <tr><td><b>Inversion testing</b></td><td>Red-team the store with a reconstruction baseline before go-live</td><td>Needs representative data and effort</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m6-detect">6.7 Detection</h2>
+
+  <table>
+    <thead><tr><th style="width:26%">Signal</th><th style="width:36%">Example</th><th>Analytic</th></tr></thead>
+    <tbody>
+      <tr><td>Bulk collection listing</td><td><code>/collections</code> then per-collection scroll</td><td>Alert on enumeration patterns and high result counts</td></tr>
+      <tr><td>Systematic similarity probes</td><td>Many queries with small perturbations of one text</td><td>Query clustering by embedding distance; per-user volume</td></tr>
+      <tr><td>Cross-tenant access</td><td>Nearest neighbours outside the caller's tenant</td><td>Assert tenant in every result; log violations</td></tr>
+      <tr><td>Score harvesting</td><td>Repeated requests for the same pair with different inputs</td><td>Rate limits; alert on score-focused probing</td></tr>
+      <tr><td>Snapshot access</td><td>Object storage reads of index files</td><td>Cloud audit logs; bucket access alerts</td></tr>
+      <tr><td>Payload scraping</td><td>Scroll API with large limits</td><td>Row-count anomalies; export controls</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m6-lab">6.8 Lab 6 — Reconstruct a vector</h2>
+
+  <div class="box lab">
+    <span class="lbl">Lab brief &middot; 4 hours</span>
+    <p><strong>Setup.</strong> A collection of 200 synthetic records (names, addresses, account numbers, short notes) embedded with a small open encoder. Participants receive the encoder, a candidate pool of 2,000 public sentences, and a search API that returns the top five matches with scores. One record is the target; its text is not disclosed.</p>
+    <p><strong>Part A — nearest neighbour.</strong> Using only the candidate pool, retrieve the closest texts to the target vector. Measure token overlap and exact-match rate. Establish a baseline.</p>
+    <p><strong>Part B — iterative refinement.</strong> Use a local LLM to propose variations of the best candidates, embed them, and keep the closest. Run 30 iterations. Plot similarity and edit distance over time.</p>
+    <p><strong>Part C — membership.</strong> Build a set of 50 member texts and 50 non-members. Using only scores, choose a threshold and measure true/false positive rates. Discuss how the threshold would be chosen by an attacker without labels.</p>
+    <p><strong>Part D — attribute inference.</strong> Train a simple classifier on embeddings to predict a synthetic attribute (for example, "department") and report accuracy on held-out vectors.</p>
+    <p><strong>Part E — defend.</strong> Add score rounding, per-user rate limits and a tenant filter, then re-run Part C. Measure how much the attack degrades and what utility is lost.</p>
+    <p><strong>Deliverable.</strong> Reconstruction examples (redacted), a table of attack success before and after controls, and a recommendation on whether the organisation should store raw text in the vector payload.</p>
+  </div>
+
+  <h2 id="m6-takeaways">6.9 Key takeaways</h2>
+  <ul>
+    <li>Embeddings are lossy encodings, not one-way hashes. Inversion is practical, especially for short, formulaic text.</li>
+    <li>Membership and attribute inference can cause harm without reconstructing documents.</li>
+    <li>The vector database is often the weakest store in the AI stack: unauthenticated, unencrypted and rich in metadata.</li>
+    <li>Similarity scores are an oracle. Exposing them enables probing even when direct reads are blocked.</li>
+    <li>Treat vectors with the same classification and access control as the content they represent.</li>
+    <li>Test inversion before go-live; after an incident, assume any exposed vector is disclosed content.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Why does short, formulaic text invert more reliably than long prose?</li>
+      <li>What is the difference between membership inference and inversion, and which is harder to prevent?</li>
+      <li>How can a search endpoint that returns only IDs and scores still leak content?</li>
+      <li>What does cross-modal inversion add to the threat model for image embeddings?</li>
+      <li>Name three controls that reduce inversion risk and the utility cost of each.</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Module 07 — Attacking Model Context Protocol and Tool Surfaces</div>
+</section>

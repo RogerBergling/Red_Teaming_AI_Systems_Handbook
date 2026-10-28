@@ -1,0 +1,68 @@
+<!--BRIEF-->
+  <div class="plainbrief">
+    <div class="lbl">The short version &middot; for everyone in the room</div>
+    <p>Multi-agent systems split a job across several agents that talk to each other, delegate tasks and pass results. The split is usually justified by specialisation, parallelism or separation of duties. Security-wise, every new agent is a new identity, every message is new input, and every delegation is a new chance to confuse who authorised what.</p>
+    <p>Most multi-agent designs assume that agents inside the system are trustworthy. That assumption fails in three common ways. An attacker can <b>impersonate</b> an agent or forge a message. An attacker can <b>poison a task or artefact</b> that one agent passes to another, so the second agent acts on instructions the first never intended. Or an attacker can exploit a <b>delegation chain</b>: agent A has broad authority, agent B has narrow authority, and B persuades A to use its broader scope. This is the confused deputy again, multiplied by the number of hops.</p>
+    <p>Protocols such as A2A add structure — agent cards, tasks, messages, artifacts — but structure is not security. Identity, authentication, audience-restricted tokens, signed artefacts and per-hop authorisation are. A message that is well-formed is not necessarily authorised, and an agent card that advertises a skill is not proof that the skill is safe to invoke.</p>
+    <ul>
+      <li><b>Authenticate every hop:</b> mutual TLS or signed requests; never trust a claim of identity inside message content.</li>
+      <li><b>Scope every delegation:</b> a delegated token must be narrower than the parent's, audience-bound and short-lived.</li>
+      <li><b>Treat artefacts as untrusted input:</b> a file passed between agents is content, not code, and must be labelled with provenance.</li>
+      <li><b>Contain propagation:</b> rate limits, human checkpoints and egress control stop a single bad task from becoming a fleet-wide incident.</li>
+    </ul>
+    <div class="onething"><b>One thing to remember</b><br>An agent's trust in another agent is a security boundary, not a convenience. If the only thing authenticating a message is that it arrived, the system has no boundary at all.</div>
+  </div>
+
+  <div class="track-label">The deep dive <span>&middot; the full technical treatment</span></div>
+<!--DEEP-->
+  <div class="deepdive">
+    <span class="lbl">Deep dive &middot; trust does not compose for free</span>
+
+    <p>Represent a multi-agent system as a directed graph of principals and agents. An edge <i>A</i> → <i>B</i> means <i>A</i> can send a task to <i>B</i>. Each agent has a capability set <i>C</i>(<i>A</i>) — tools, data scopes, network reach, spend limits — and an identity credential. A delegation is safe only if the capability set of the callee, as exercised on behalf of the caller, is a subset of the caller's authority for that task. Formally, for every hop:</p>
+
+    <div class="formula">
+      <span class="eq"><i>C</i>(<i>B</i> on behalf of <i>A</i>) ⊆ <i>C</i>(<i>A</i>) ∩ <i>scope</i>(task)</span>
+      <span class="where">If the subset relation fails, the chain has <b>privilege amplification</b>. Most real multi-agent vulnerabilities are violations of this line, not failures of the language model.</span>
+    </div>
+
+    <p>Classical delegation uses <b>capability attenuation</b>: a token can be narrowed but never widened as it passes down the chain. Scopes, downscoping and token exchange provide the authorisation attenuation. OAuth 2.1 resource indicators and audience-restricted tokens complement that by limiting <em>where</em> a token can be used — they constrain the resource and audience, not the privileges themselves, and audience restriction does not by itself guarantee that authority narrows on each delegation hop. RFC 8707 keeps resource/audience distinct from scope, so audience restriction is not a substitute for downscoping. A2A's security schemes can carry attenuated authority, but only if each server validates the token audience and the task scope rather than accepting any bearer token that reaches it. Token passthrough — accepting a token issued for another service — is the most common implementation mistake, because it turns every agent into a potential deputy for every other service.</p>
+
+    <h3>Attack classes and their preconditions</h3>
+    <table>
+      <thead><tr><th style="width:22%">Class</th><th style="width:40%">Precondition</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><b>Agent impersonation</b></td><td>No mutual authentication; identity asserted in message body</td><td>Attacker issues tasks as a trusted agent</td></tr>
+        <tr><td><b>Task injection</b></td><td>Task fields concatenated into a prompt without provenance</td><td>Hidden instructions execute in the receiving agent</td></tr>
+        <tr><td><b>Artifact poisoning</b></td><td>Files passed between agents are parsed or summarised without review</td><td>Persistent payload enters the next agent's context or output</td></tr>
+        <tr><td><b>Goal hijacking</b></td><td>Planner accepts a revised objective from a peer message</td><td>Delegation is redirected to an attacker-chosen goal</td></tr>
+        <tr><td><b>Confused deputy</b></td><td>Broad-scope agent accepts narrow-scope agent's request</td><td>Privilege escalation across the chain</td></tr>
+        <tr><td><b>Collusion</b></td><td>Two compromised agents combine scopes neither has alone</td><td>Data or capability aggregation beyond policy</td></tr>
+        <tr><td><b>Resource exhaustion</b></td><td>Recursive delegation without depth or budget limits</td><td>Cost amplification, denial of service</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Propagation is an epidemic problem</h3>
+    <p>Once one agent is compromised, the question is how far it spreads. A simple branching model helps: let β be the probability that a message from a compromised agent successfully compromises a recipient, κ the average number of recipients per task, and <i>D</i> the number of delegation rounds before a human checkpoint or timeout. The expected number of new compromised agents directly caused by one compromised agent is roughly βκ, so the reproduction number is:</p>
+
+    <div class="formula">
+      <span class="eq"><i>R</i><sub>0</sub> ≈ β · κ &nbsp;&nbsp;&nbsp; <i>D</i> is a propagation horizon, not a multiplier</span>
+      <span class="where">If <i>R</i><sub>0</sub> &gt; 1 the incident tends to grow; below 1 it tends to die out. <i>D</i> bounds how many generations can occur. The expected number compromised at generation <i>d</i> is approximately (βκ)<sup><i>d</i></sup>, and the total descendants through <i>D</i> rounds is approximately Σ<sub><i>d</i>=1</sub><sup><i>D</i></sup> (βκ)<sup><i>d</i></sup>. Multiplying <i>R</i><sub>0</sub> by <i>D</i> would give the wrong threshold and the wrong growth estimate.</span>
+    </div>
+
+    <p>The model is deliberately crude, but it captures the right controls. Authentication reduces β. A registry and allowlist reduce κ. Depth limits and approval gates cap the horizon <i>D</i>: they do not change whether the incident grows per generation, but they limit how many generations occur before a human intervenes. Rate limits and spend caps bound the impact even when <i>R</i><sub>0</sub> is above 1. The important shift is from "can this agent be tricked?" — which is often yes — to "how far can a trick travel, and what stops it?"</p>
+
+    <h3>What to verify on the wire</h3>
+    <ul>
+      <li><strong>Identity.</strong> Is the caller authenticated with a credential bound to the agent, or is identity a string in the payload? Is the credential short-lived and rotated?</li>
+      <li><strong>Audience.</strong> Does the receiving service reject tokens issued for a different service? Does it validate the issuer, not just the signature?</li>
+      <li><strong>Scope.</strong> Does the token encode the task scope, and does the callee enforce it? Is the scope narrower than the caller's?</li>
+      <li><strong>Provenance.</strong> Does every task and artefact carry a signed origin and a chain of custody? Is content from an external agent marked as untrusted?</li>
+      <li><strong>Idempotency and replay.</strong> Can a captured message be replayed? Are task IDs unique and expiring? Is there a nonce?</li>
+      <li><strong>Limits.</strong> Is there a maximum delegation depth, fan-out, token budget and wall-clock time? Who can override them?</li>
+    </ul>
+
+    <h3>Detection: the shape of a delegation incident</h3>
+    <p>Useful signals include a sudden change in delegation fan-out, an agent calling peers it has never called before, tokens presented to the wrong audience, a spike in task retries, artefacts whose hash does not match the registry, and a single user session spawning an unusually deep chain. Correlate on task ID and trace ID across agents; without a shared trace, a multi-agent incident looks like several unrelated anomalies. The detection goal is not to classify intent but to notice that the shape of the graph changed.</p>
+
+    <p>The safest architecture is boring: few agents, narrow scopes, explicit contracts, signed artefacts, a central registry and a human in the loop for irreversible actions. Multi-agent systems earn their complexity when the task genuinely decomposes; they do not earn it by adding another place to hide an instruction.</p>
+  </div>

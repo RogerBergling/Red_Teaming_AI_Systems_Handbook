@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 700 330" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" width="700" height="330">
+      <defs><marker id="bl" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#5b6b7c"/></marker></defs>
+      <g font-size="8.5">
+        <rect x="250" y="16" width="190" height="38" rx="3" fill="#eef7f5" stroke="#0f766e"/>
+        <text x="264" y="39" font-weight="bold" fill="#0f4f4a">Residual stream x</text>
+
+        <rect x="250" y="78" width="190" height="34" rx="3" fill="#eef2f6" stroke="#64748b"/>
+        <text x="264" y="99" fill="#33465a">LayerNorm / RMSNorm</text>
+
+        <rect x="250" y="132" width="190" height="44" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="264" y="151" font-weight="bold" fill="#7a3a08">Multi-head self-attention</text>
+        <text x="264" y="164" font-size="7.2" fill="#7a5a3a">causal · grouped KV · rotary positions</text>
+
+        <circle cx="345" cy="198" r="11" fill="#fff" stroke="#33465a"/>
+        <text x="340" y="202" font-size="11" fill="#33465a">+</text>
+
+        <rect x="250" y="228" width="190" height="30" rx="3" fill="#eef2f6" stroke="#64748b"/>
+        <text x="264" y="247" fill="#33465a">LayerNorm / RMSNorm</text>
+
+        <rect x="250" y="274" width="190" height="44" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="264" y="293" font-weight="bold" fill="#7a3a08">Feed-forward / SwiGLU</text>
+        <text x="264" y="306" font-size="7.2" fill="#7a5a3a">position-wise, expands to ~4d</text>
+
+        <path d="M345 54 V74" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <path d="M345 112 V128" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <path d="M345 176 V186" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <path d="M356 198 H410 V35 H444" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <text x="420" y="120" font-size="7.2" fill="#7b8a9a" transform="rotate(90 420 120)">residual add</text>
+        <path d="M345 209 V224" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+        <path d="M345 258 V270" stroke="#5b6b7c" fill="none" marker-end="url(#bl)"/>
+
+        <text x="32" y="90" font-size="8" fill="#4a5a6b">One block.</text>
+        <text x="32" y="104" font-size="8" fill="#4a5a6b">Repeat 30–100×.</text>
+        <text x="32" y="126" font-size="7.4" fill="#7b8a9a">Every block reads and</text>
+        <text x="32" y="138" font-size="7.4" fill="#7b8a9a">writes the same stream.</text>
+      </g>
+    </svg>

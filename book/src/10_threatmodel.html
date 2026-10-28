@@ -1,0 +1,271 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Module 10</span>
+    <h1 id="m10">Threat Modeling for AI-Enabled Targets</h1>
+    <p class="dek">Turning an inventory into a plan: assets, trust boundaries, attack paths, scoring and the controls that close them.</p>
+  </div>
+
+  <div class="objectives">
+    <div class="lbl">Learning objectives</div>
+    <ul>
+      <li>Adapt a structured threat-modelling process to AI systems and their data flows.</li>
+      <li>Build a data-flow diagram with meaningful trust boundaries for an agentic application.</li>
+      <li>Enumerate threats using component-specific question banks and AI-specific frameworks.</li>
+      <li>Model attack paths and identify chokepoints that reduce risk across many threats.</li>
+      <li>Score AI risk in a way that reflects exploitability, detectability and business impact.</li>
+      <li>Translate the model into a test plan, a control roadmap and a report a risk committee can act on.</li>
+    </ul>
+  </div>
+
+  <p class="lede">A threat model is the bridge between reconnaissance and testing. It decides what is worth attacking, what success would mean, and which control would make the attack uneconomic. Without it, an engagement becomes a list of techniques; with it, the engagement becomes an argument about risk that the organisation can act on.</p>
+
+  <p>AI systems strain traditional threat modelling because their behaviour is not fully specified. STRIDE asks whether an attacker can spoof, tamper, repudiate, disclose, deny or escalate. Those questions still apply, but the objects are unfamiliar: an agent's identity, a prompt's provenance, a model's weights, a memory store's contents. The process below keeps the rigour and adapts the objects.</p>
+
+  <h2 id="m10-frameworks">10.1 Frameworks and where each fits</h2>
+
+  <table>
+    <thead><tr><th style="width:22%">Framework</th><th style="width:40%">Best used for</th><th>What it misses</th></tr></thead>
+    <tbody>
+      <tr><td><b>STRIDE</b></td><td>Component-level threat enumeration; familiar to security teams</td><td>No data-quality, model-behaviour or supply-chain primitives</td></tr>
+      <tr><td><b>LINDDUN</b></td><td>Privacy threats: linkability, identifiability, non-repudiation, detectability, disclosure, unawareness, non-compliance</td><td>Does not model action-taking agents well</td></tr>
+      <tr><td><b>MAESTRO</b></td><td>Layered threat modelling for agentic and ML systems; separates model, data, application and infrastructure layers</td><td>Newer; less tooling and practitioner experience</td></tr>
+      <tr><td><b>MITRE ATLAS</b></td><td>Technique coverage and detection mapping; SOC communication</td><td>A catalogue, not a process</td></tr>
+      <tr><td><b>OWASP LLM 2026 / Agentic 2026</b></td><td>Risk categories, procurement questions, control checklists</td><td>Overlapping categories; not a decomposition method</td></tr>
+      <tr><td><b>NIST AI 100-2</b></td><td>Taxonomy of evasion, poisoning and privacy attacks</td><td>Abstract; needs translation into tests</td></tr>
+    </tbody>
+  </table>
+
+  <p>The practical approach is to use STRIDE as the enumeration engine, AI-specific categories as a completeness check, ATLAS for technique and detection mapping, and NIST AI RMF language for the governance audience. No single framework is sufficient, and none replaces a good diagram.</p>
+
+  <h2 id="m10-process">10.2 The process</h2>
+
+  <ol>
+    <li><strong>Define the system and its purpose.</strong> What does it do, for whom, with what authority? Include the business process it changes, not just the software.</li>
+    <li><strong>Decompose into components and flows.</strong> External entities, processes, data stores and data flows. Mark where data changes hands or trust level.</li>
+    <li><strong>Draw trust boundaries.</strong> At minimum: user to application, application to model provider, application to retrieval corpus, agent to tool, agent to agent, tenant to tenant, organisation to third party.</li>
+    <li><strong>Inventory assets.</strong> Models, weights, adapters, prompts, corpora, embeddings, conversation logs, tool credentials, eval sets, agent identities.</li>
+    <li><strong>Enumerate threats per component and flow.</strong> Use the question bank in §10.4, then add AI-specific categories.</li>
+    <li><strong>Build attack paths.</strong> Chain threats into sequences from entry to impact. Identify the shortest path to each high-value asset.</li>
+    <li><strong>Identify controls and detections.</strong> For each path, name the preventive control and the telemetry that would reveal it.</li>
+    <li><strong>Score and prioritise.</strong> Use criteria that reflect AI-specific exploitability and business impact, not just CVSS.</li>
+    <li><strong>Write the test plan.</strong> Each high-priority path becomes a lab or production test with a success condition.</li>
+    <li><strong>Review and maintain.</strong> Re-run when the model, corpus, tools or tenancy change.</li>
+  </ol>
+
+  <figure>
+    <svg viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif">
+      <defs><marker id="a10" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7b8a9a"/></marker></defs>
+      <!-- boundaries -->
+      <rect x="120" y="30" width="440" height="250" fill="none" stroke="#c2410c" stroke-dasharray="5 3"/>
+      <text x="128" y="24" font-size="7" fill="#c2410c" letter-spacing="0.8">ORGANISATION BOUNDARY</text>
+      <rect x="245" y="95" width="190" height="150" fill="none" stroke="#0f766e" stroke-dasharray="4 3"/>
+      <text x="253" y="90" font-size="7" fill="#0f766e" letter-spacing="0.8">AGENT RUNTIME</text>
+
+      <g font-size="7.5">
+        <!-- external -->
+        <rect x="12" y="54" width="82" height="42" rx="2" fill="#fff" stroke="#64748b"/>
+        <text x="22" y="70" font-weight="bold" fill="#33465a">User</text>
+        <text x="22" y="82" font-size="6.8" fill="#5b6b7c">browser / API</text>
+
+        <rect x="12" y="180" width="82" height="42" rx="2" fill="#fff" stroke="#c2410c"/>
+        <text x="22" y="196" font-weight="bold" fill="#a33a0c">Attacker</text>
+        <text x="22" y="208" font-size="6.8" fill="#6b4a3a">content publisher</text>
+
+        <!-- processes -->
+        <rect x="140" y="54" width="92" height="42" rx="2" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="150" y="70" font-weight="bold" fill="#0f4f4a">App / API</text>
+        <text x="150" y="82" font-size="6.8" fill="#3d5a5a">auth · assembly</text>
+
+        <rect x="265" y="40" width="92" height="40" rx="2" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="275" y="55" font-weight="bold" fill="#7a3a08">LLM</text>
+        <text x="275" y="67" font-size="6.8" fill="#7a5a3a">inference</text>
+
+        <rect x="265" y="110" width="92" height="42" rx="2" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="275" y="126" font-weight="bold" fill="#7a3a08">Agent loop</text>
+        <text x="275" y="138" font-size="6.8" fill="#7a5a3a">plan · tools</text>
+
+        <rect x="265" y="190" width="92" height="42" rx="2" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="275" y="206" font-weight="bold" fill="#7a3a08">Tools</text>
+        <text x="275" y="218" font-size="6.8" fill="#7a5a3a">MCP · APIs</text>
+
+        <rect x="400" y="54" width="92" height="42" rx="2" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="410" y="70" font-weight="bold" fill="#0f4f4a">Vector DB</text>
+        <text x="410" y="82" font-size="6.8" fill="#3d5a5a">embeddings</text>
+
+        <rect x="400" y="120" width="92" height="42" rx="2" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="410" y="136" font-weight="bold" fill="#0f4f4a">Memory</text>
+        <text x="410" y="148" font-size="6.8" fill="#3d5a5a">profile · history</text>
+
+        <rect x="400" y="190" width="92" height="42" rx="2" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="410" y="206" font-weight="bold" fill="#0f4f4a">Data stores</text>
+        <text x="410" y="218" font-size="6.8" fill="#3d5a5a">CRM · files · SQL</text>
+
+        <!-- external third party -->
+        <rect x="580" y="54" width="108" height="52" rx="2" fill="#fff" stroke="#c2410c"/>
+        <text x="590" y="70" font-weight="bold" fill="#a33a0c">Model provider</text>
+        <text x="590" y="82" font-size="6.8" fill="#6b4a3a">third-party API</text>
+        <text x="590" y="94" font-size="6.8" fill="#6b4a3a">subprocessor</text>
+
+        <rect x="580" y="190" width="108" height="52" rx="2" fill="#fff" stroke="#c2410c"/>
+        <text x="590" y="206" font-weight="bold" fill="#a33a0c">External agent</text>
+        <text x="590" y="218" font-size="6.8" fill="#6b4a3a">A2A / MCP server</text>
+        <text x="590" y="230" font-size="6.8" fill="#6b4a3a">vendor-owned</text>
+
+        <!-- flows -->
+        <g stroke="#7b8a9a" stroke-width="0.7" fill="none">
+          <path d="M94 72 H137" marker-end="url(#a10)"/>
+          <path d="M186 72 H262" marker-end="url(#a10)"/>
+          <path d="M311 80 V107" marker-end="url(#a10)"/>
+          <path d="M311 152 V187" marker-end="url(#a10)"/>
+          <path d="M357 131 H397" marker-end="url(#a10)"/>
+          <path d="M357 211 H397" marker-end="url(#a10)"/>
+          <path d="M492 75 H577" stroke-dasharray="3 2" marker-end="url(#a10)"/>
+          <path d="M492 211 H577" stroke-dasharray="3 2" marker-end="url(#a10)"/>
+          <path d="M94 201 C130 201 120 150 140 100" stroke="#c2410c" stroke-dasharray="2 2" marker-end="url(#a10)"/>
+          <path d="M492 66 C510 66 510 120 492 135" stroke="#c2410c" stroke-dasharray="2 2" marker-end="url(#a10)"/>
+        </g>
+        <g font-size="6.4" fill="#7b8a9a">
+          <text x="100" y="66">request</text>
+          <text x="205" y="66">prompt</text>
+          <text x="318" y="98">context</text>
+          <text x="318" y="174">call</text>
+          <text x="365" y="126">query</text>
+          <text x="365" y="206">read/write</text>
+          <text x="500" y="70">inference</text>
+          <text x="500" y="206">tasks</text>
+        </g>
+        <text x="520" y="160" font-size="6.6" fill="#c2410c">injected content → retrieval → agent</text>
+      </g>
+    </svg>
+    <figcaption><b>Figure 10.1 — A minimal AI data-flow diagram.</b> Solid arrows are intended flows; dashed arrows are trust-boundary crossings by untrusted content or third-party services. Every crossing is a place where the threat model must state what is trusted and why.</figcaption>
+  </figure>
+
+  <h2 id="m10-assets">10.3 Assets and classification</h2>
+
+  <table>
+    <thead><tr><th style="width:24%">Asset</th><th style="width:36%">Why an attacker wants it</th><th>Classification question</th></tr></thead>
+    <tbody>
+      <tr><td>Model weights and adapters</td><td>IP, capability, backdoor insertion point</td><td>What is the cost of disclosure or modification?</td></tr>
+      <tr><td>System prompts and policies</td><td>Reveal controls, secrets, business logic</td><td>Does it contain credentials or proprietary rules?</td></tr>
+      <tr><td>Retrieval corpus</td><td>Confidential knowledge, injection channel</td><td>Who is allowed to read each document?</td></tr>
+      <tr><td>Embeddings</td><td>Reconstructable content, membership oracle</td><td>Same as the source document?</td></tr>
+      <tr><td>Conversation logs</td><td>PII, secrets, business context</td><td>Retention, access, redaction?</td></tr>
+      <tr><td>Tool credentials</td><td>Direct access to systems of record</td><td>Scope, lifetime, blast radius?</td></tr>
+      <tr><td>Agent identities</td><td>Impersonation, delegation</td><td>Who can register, approve, revoke?</td></tr>
+      <tr><td>Evaluation sets</td><td>Gaming safety, contamination</td><td>Integrity and access control?</td></tr>
+      <tr><td>Telemetry</td><td>Reconstruction of activity, evasion</td><td>Tamper protection, retention?</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m10-questions">10.4 A question bank for enumeration</h2>
+
+  <p>These questions are designed to be asked of the system owner in a workshop and answered with evidence. "We think so" is not an answer; the model should record the evidence or flag it as an assumption.</p>
+
+  <table>
+    <thead><tr><th style="width:26%">Component</th><th>Questions</th></tr></thead>
+    <tbody>
+      <tr><td><b>Prompt assembly</b></td><td>Which parts of the context can an unauthenticated party influence? Is provenance recorded? Are retrieved chunks delimited and labelled? Are secrets present? Who can change the system prompt, and is that change reviewed?</td></tr>
+      <tr><td><b>Model</b></td><td>Where did the weights come from? Is the revision pinned? Is remote code disabled? Who can swap the model? How would you know if behaviour changed?</td></tr>
+      <tr><td><b>Memory</b></td><td>What is stored, for how long, and under whose identity? Can a user read or delete it? Is it shared across users or tenants? What scans writes?</td></tr>
+      <tr><td><b>Retrieval</b></td><td>Which sources are ingested automatically? Who reviews new content? Are ACLs enforced at query time? How quickly do deletions and permission changes propagate?</td></tr>
+      <tr><td><b>Tools</b></td><td>What can each tool do, with which credential, on whose behalf? Which actions are irreversible? What requires approval? Can the tool reach the internet or the metadata service?</td></tr>
+      <tr><td><b>Agents</b></td><td>How are agents authenticated to each other? Are messages signed? Is delegation scoped? What is the maximum fan-out? Who can register an agent?</td></tr>
+      <tr><td><b>Infrastructure</b></td><td>Which services are internet-facing? What is the identity graph from each? Is egress restricted? Are images signed and pinned?</td></tr>
+      <tr><td><b>People &amp; process</b></td><td>Who approves a new data source, tool or agent? How are incidents detected and escalated? What is the rollback plan for a poisoned corpus or a bad model?</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m10-paths">10.5 Attack-path modelling</h2>
+
+  <p>A threat list is not a plan. Attack-path modelling connects individual weaknesses into a sequence that reaches an objective. Represent the system as a graph: nodes are assets and capabilities; edges are actions an attacker can take. Then ask three questions.</p>
+
+  <p><strong>What is the shortest path from an unauthenticated entry point to a high-value asset?</strong> If a public chatbot can reach the vector database through a tool, the path may be two hops long. That is the finding to lead with, regardless of how many low-severity issues exist elsewhere.</p>
+
+  <p><strong>Where are the chokepoints?</strong> A single control that appears on many paths is worth more than many controls on one path. Egress allowlisting, per-action authorisation and tenant-scoped retrieval are chokepoints because they break entire classes of attack.</p>
+
+  <p><strong>What is the blast radius?</strong> If the agent is compromised, what can it reach with its own identity? If the inference pod is compromised, what can its service account reach? Blast radius is often determined by identity design, not by the application.</p>
+
+  <div class="box note">
+    <span class="lbl">The three-question triage</span>
+    <p>For every AI feature, ask: <b>(1)</b> Does it read content an outsider can write? <b>(2)</b> Can it reach private data? <b>(3)</b> Can it send data out? Three yeses is a critical design issue. Two yeses is a high-priority test. One yes is a normal application to review. Zero yeses is a system where prompt injection is a quality problem, not a security one.</p>
+  </div>
+
+  <h2 id="m10-score">10.6 Scoring AI risk</h2>
+
+  <p>CVSS was designed for software vulnerabilities with deterministic behaviour. An AI finding such as "indirect injection can cause the agent to exfiltrate a document" has a probabilistic exploit, a variable impact and a detection story that CVSS cannot express. Use a rubric that makes those dimensions explicit.</p>
+
+  <table>
+    <thead><tr><th style="width:18%">Dimension</th><th style="width:52%">Question</th><th>Scale</th></tr></thead>
+    <tbody>
+      <tr><td><b>Impact</b></td><td>What is the worst realistic outcome in business terms — data, money, safety, regulatory?</td><td>1 minor / 2 moderate / 3 major / 4 severe</td></tr>
+      <tr><td><b>Exploitability</b></td><td>What access and skill are required? Is the entry point unauthenticated?</td><td>1 difficult / 2 moderate / 3 easy / 4 trivial</td></tr>
+      <tr><td><b>Reliability</b></td><td>What is the observed attack success rate over a trial series?</td><td>1 &lt;10% / 2 10–40% / 3 40–70% / 4 &gt;70%</td></tr>
+      <tr><td><b>Detectability</b></td><td>Would the organisation notice, and how quickly?</td><td>1 immediate / 2 hours / 3 days / 4 never</td></tr>
+      <tr><td><b>Reversibility</b></td><td>Can the effect be undone — data restored, action reversed?</td><td>1 easy / 2 costly / 3 permanent / 4 irreversible harm</td></tr>
+      <tr><td><b>Breadth</b></td><td>One tenant, one user, or every customer?</td><td>1 single / 2 team / 3 organisation / 4 all tenants</td></tr>
+    </tbody>
+  </table>
+
+  <p>A simple composite — impact × exploitability × reliability, adjusted upward for low detectability and irreversibility — is enough to rank findings. The exact formula matters less than applying it consistently and showing the inputs. Document the trial count behind every reliability score; a single success is not a 100% ASR.</p>
+
+  <h2 id="m10-controls">10.7 From threat to control to detection</h2>
+
+  <p>Each high-priority threat should produce three artefacts: a preventive control, a detective control and a test. If any is missing, the threat is not managed. For AI systems, classify the preventive control as either <b>model-side</b> (prompting, classifiers, training) or <b>system-side</b> (identity, authorisation, isolation, egress, quotas). Model-side controls reduce likelihood; system-side controls bound impact. A threat model that relies only on model-side controls has not bounded anything, because the model is the component whose behaviour is least guaranteed.</p>
+
+  <table class="compact">
+    <thead><tr><th style="width:26%">Threat</th><th style="width:26%">Preventive control</th><th>Detection</th></tr></thead>
+    <tbody>
+      <tr><td>Indirect injection via email</td><td>Treat email as untrusted; dual-LLM; no tool authority in the mail-reading path</td><td>Classifier on retrieved chunks; egress anomaly</td></tr>
+      <tr><td>Cross-tenant retrieval</td><td>Pre-filter by tenant and user; separate indexes</td><td>Assert tenant in results; log violations</td></tr>
+      <tr><td>Tool scope escalation</td><td>Per-action authorisation; attenuated delegation</td><td>New (agent, tool, resource) triples</td></tr>
+      <tr><td>Poisoned corpus</td><td>Ingestion review; source allowlist; provenance</td><td>Document diff; retrieval entropy</td></tr>
+      <tr><td>Malicious model artefact</td><td>Safetensors; digest pinning; sandbox load</td><td>Hash mismatch; load-time process activity</td></tr>
+      <tr><td>Exposed inference API</td><td>Authentication; network policy; gateway</td><td>Unauthenticated request volume; new clients</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m10-governance">10.8 Governance and the report</h2>
+
+  <p>Threat models are also governance artefacts. They support model cards, AI-BOMs, data protection impact assessments, vendor risk reviews and regulatory obligations. Keep the model versioned and link every finding to the asset and control it concerns.</p>
+
+  <p>For a risk committee, lead with the business process and the attack path, not the technique. "An unauthenticated attacker can cause the support agent to disclose another tenant's contract" is actionable. "We achieved a 62% ASR on indirect prompt injection" is evidence for that statement, not a substitute for it. Put the technique detail in an appendix and keep the decision in the first two pages.</p>
+
+  <p>Map obligations explicitly: which data classes are involved, whether the system is high-risk under the EU AI Act, which NIST AI RMF function owns the remediation, and what evidence will demonstrate closure. A finding without an owner and a retest date is a wish.</p>
+
+  <h2 id="m10-lab">10.9 Lab 10 — Threat model the capstone environment</h2>
+
+  <div class="box lab">
+    <span class="lbl">Lab brief &middot; 5 hours</span>
+    <p><strong>Inputs.</strong> The asset inventory from Lab 2 and the architecture description of the capstone enterprise (Module 11).</p>
+    <p><strong>Part A.</strong> Produce a data-flow diagram with at least six trust boundaries. Label every flow with the data class it carries and the identity that authorises it.</p>
+    <p><strong>Part B.</strong> Build an asset register with classification and owner. Identify the five assets whose compromise would matter most, with a business justification.</p>
+    <p><strong>Part C.</strong> Enumerate at least 25 threats using STRIDE and the question bank. Tag each with an ATLAS technique or OWASP category where possible.</p>
+    <p><strong>Part D.</strong> Construct attack paths. Identify the three shortest paths to the top assets and the chokepoints that would break the most paths.</p>
+    <p><strong>Part E.</strong> Score the top ten using the rubric, with explicit trial counts where you have evidence and "assumption" where you do not.</p>
+    <p><strong>Part F.</strong> Write a two-page executive summary and a test plan for the capstone. The test plan must name the success condition and the expected telemetry for each test.</p>
+    <p><strong>Deliverable.</strong> Diagram, register, threat table, scorecard, summary and test plan.</p>
+  </div>
+
+  <h2 id="m10-takeaways">10.10 Key takeaways</h2>
+  <ul>
+    <li>Threat modelling is how an engagement becomes an argument about risk rather than a list of tricks.</li>
+    <li>Trust boundaries are the unit of analysis; AI adds boundaries around content, memory, tools and agents.</li>
+    <li>The lethal trifecta is the fastest triage heuristic for agentic systems.</li>
+    <li>Attack paths and chokepoints matter more than an unranked list of weaknesses.</li>
+    <li>CVSS is insufficient; score exploitability, reliability, detectability and reversibility explicitly.</li>
+    <li>Every threat needs a preventive control, a detection and a test — or it is not managed.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Which trust boundaries does an AI system add that a traditional web application does not have?</li>
+      <li>Why is "the model is hosted by a trusted provider" not a sufficient answer about a trust boundary?</li>
+      <li>How would you score a finding with 15% ASR, irreversible impact and no detection?</li>
+      <li>What is a chokepoint, and give three examples from this course.</li>
+      <li>Why does a threat model need an owner and a retest date?</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Module 11 — Assembling the Pieces: Capstone Engagement</div>
+</section>

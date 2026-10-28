@@ -1,0 +1,219 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Module 08</span>
+    <h1 id="m8">Supply Chain Attacks on AI/ML Systems</h1>
+    <p class="dek">Compromising the system before it is deployed: datasets, weights, adapters, packages, images and the registries that distribute them.</p>
+  </div>
+
+  <div class="objectives">
+    <div class="lbl">Learning objectives</div>
+    <ul>
+      <li>Map the AI supply chain from hardware and base models to adapters, packages and containers.</li>
+      <li>Explain how model artefacts can execute code at load time and why file format matters.</li>
+      <li>Design dataset-poisoning and backdoor experiments, and evaluate whether behavioural testing would catch them.</li>
+      <li>Identify package, registry and model-hub attacks, including typosquatting and account compromise.</li>
+      <li>Apply provenance controls: hashing, signing, pinning, SBOM/AIBOM and isolated loading.</li>
+      <li>Detect tampering and anomalous model behaviour in the pipeline.</li>
+    </ul>
+  </div>
+
+  <p class="lede">AI systems inherit every supply-chain problem of modern software, then add new ones. A model is a binary artefact that may execute code when loaded. A dataset is an input that shapes behaviour in ways no scanner can fully verify. An adapter is a small file that can change a model's personality, safety behaviour and loyalties. The supply chain is long, fast-moving and built on public registries with uneven review.</p>
+
+  <p>The attacker's advantage is timing: compromise before deployment and every downstream control sees a trusted artefact. The defender's advantage is that supply chains leave records — hashes, signatures, provenance, download logs. This module is about using those records and about testing what happens when they are absent.</p>
+
+  <h2 id="m8-map">8.1 The AI supply chain</h2>
+
+  <table>
+    <thead><tr><th style="width:20%">Layer</th><th style="width:36%">Components</th><th style="width:22%">Compromise primitive</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td><b>Hardware &amp; drivers</b></td><td>GPUs, accelerators, CUDA/ROCm, firmware, device plugins</td><td>Malicious driver, firmware implant, supply-chain interdiction</td><td>Host takeover, silent computation manipulation</td></tr>
+      <tr><td><b>Base models</b></td><td>Open-weight checkpoints, tokenizers, configs</td><td>Trojaned weights, malicious config, substituted model</td><td>Backdoored behaviour, code execution on load</td></tr>
+      <tr><td><b>Fine-tunes &amp; adapters</b></td><td>LoRA, QLoRA, full fine-tunes, merged models</td><td>Adapter with hidden behaviour; merge manipulation</td><td>Targeted backdoor; safety removal</td></tr>
+      <tr><td><b>Datasets</b></td><td>Pretraining corpora, instruction sets, preference data, eval sets</td><td>Poisoning, label flipping, licence contamination</td><td>Biased or triggerable behaviour; legal exposure</td></tr>
+      <tr><td><b>Frameworks</b></td><td>PyTorch, TensorFlow, JAX, Transformers, vLLM, llama.cpp</td><td>Malicious package, compromised maintainer, vulnerable parser</td><td>Code execution, model theft, DoS</td></tr>
+      <tr><td><b>Packages</b></td><td>PyPI, npm, Conda, Maven, language SDKs</td><td>Typosquat, dependency confusion, install script</td><td>Code execution in build or runtime</td></tr>
+      <tr><td><b>Containers</b></td><td>Base images, CUDA images, inference images</td><td>Poisoned layer, unsigned image, mutable tag</td><td>Compromise of every deployment using the tag</td></tr>
+      <tr><td><b>Hubs &amp; registries</b></td><td>Model hubs, artefact stores, MLflow registry</td><td>Account takeover, look-alike model, unsigned revision</td><td>Distribution of malicious artefacts at scale</td></tr>
+      <tr><td><b>Orchestration</b></td><td>Kubernetes, KServe, pipelines, gateways</td><td>Poisoned chart, plugin, admission webhook</td><td>Cluster-wide compromise</td></tr>
+      <tr><td><b>Extensions</b></td><td>MCP servers, plugins, connectors, eval harnesses</td><td>Malicious package, poisoned tool definition</td><td>Agent-level code execution and data access</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m8-artefacts">8.2 Model artefacts that execute</h2>
+
+  <p>The single most important fact in AI supply-chain security: <strong>some model file formats can execute code when loaded</strong>. Python's pickle, used by <code>torch.save</code> and many older checkpoints, supports arbitrary object reconstruction. Unpickling calls functions specified in the file. For most of PyTorch's history, <code>torch.load</code> used that path by default, so loading an untrusted checkpoint was equivalent to running untrusted code. <b>That default changed in PyTorch 2.6:</b> when <code>pickle_module</code> is not supplied, <code>torch.load</code> now defaults to <code>weights_only=True</code>, which restricts the unpickler to types needed for tensors and primitive containers and does not dynamically import arbitrary modules. This significantly reduces arbitrary-code execution risk, but it is a risk reduction, not a total guarantee. Treat legacy formats, explicitly unsafe loads and non-tensor artefacts as executable until proven otherwise.</p>
+
+  <p>A minimal demonstration — safe, and useful for testing whether a pipeline executes payloads:</p>
+
+  <div class="codeline-lbl">A benign canary payload for lab use only</div>
+<pre>import os, pickle
+
+class Canary:
+    def __reduce__(self):
+        return (os.system, ("touch /tmp/model_loaded",))
+
+with open("canary.pt", "wb") as f:
+    pickle.dump(Canary(), f)
+
+# Loading this file executes the command only under a legacy/unsafe load.
+# On PyTorch 2.6+, reproduce the canary explicitly:
+#   torch.load("canary.pt", weights_only=False)
+# Never use weights_only=False outside a disposable lab.
+# In a lab, use a marker file; never a destructive action.</pre>
+
+  <p>The <code>weights_only=False</code> condition is deliberate. On PyTorch 2.6+, a custom class that is not on the unpickler's allowlist is expected to fail with an <code>Unsupported global</code> error when loaded under the default <code>weights_only=True</code>. It is not expected to silently materialise that custom object. A lab that omits the flag may therefore fail to reproduce the historical vulnerability and teach the wrong lesson: record the PyTorch version, the exact load arguments and the exception text. If the object does load under the default, treat that as a finding about the loader or the allowlist, not as normal behaviour.</p>
+
+  <p>Defenders should assume that any pickle-based artefact from an untrusted source is code. The same applies to:</p>
+  <ul>
+    <li><code>trust_remote_code=True</code> in Transformers, which downloads and runs Python from the model repository.</li>
+    <li>Keras models with Lambda layers, which embed serialised Python.</li>
+    <li>ONNX models with custom operators or external data references.</li>
+    <li>TorchScript archives and <code>torch.jit.load</code> paths.</li>
+    <li>Some GGUF and tokenizer parsers, where memory-safety bugs have been found.</li>
+    <li>Pickle-based dataset and pipeline artefacts, not just models.</li>
+  </ul>
+
+  <p><strong>Safetensors</strong> is a meaningful improvement: it stores tensors and metadata without arbitrary object reconstruction. It is not a complete guarantee. A repository may still ship Python configuration code, a tokenizer with unusual behaviour, a conversion script, or a <code>trust_remote_code</code> path. Attackers have also published files that scanners misclassify, using malformed or unusual pickle structures. Format is a control, not a proof.</p>
+
+  <div class="box warn">
+    <span class="lbl">Load-time is execution time</span>
+    <p>Scanning before load is necessary but not sufficient: scanners miss novel formats and obfuscation. Load untrusted artefacts in a disposable sandbox with no credentials, no network and a read-only filesystem, and only then promote them to a trusted store. This is the model equivalent of detonating a suspicious document in a VM.</p>
+  </div>
+
+  <h2 id="m8-data">8.3 Dataset poisoning</h2>
+
+  <p>Data poisoning changes behaviour by changing what the model learns. It is attractive to attackers because it can be subtle, persistent and hard to attribute, and because many organisations train or fine-tune on data they do not fully control.</p>
+
+  <h3>Objectives</h3>
+  <ul>
+    <li><strong>Backdoor.</strong> A trigger phrase causes a specific behaviour — a wrong answer, a recommendation, a code pattern — while normal inputs behave correctly. The trigger is the attacker's key.</li>
+    <li><strong>Targeted misclassification.</strong> A particular class of input is systematically mislabelled (a spam filter that passes a brand, a fraud model that ignores a merchant).</li>
+    <li><strong>Bias and reputational harm.</strong> Skewed associations that produce discriminatory or embarrassing output.</li>
+    <li><strong>Safety removal.</strong> Fine-tuning on data that erodes refusal behaviour, enabling downstream misuse.</li>
+    <li><strong>Evaluation contamination.</strong> Poisoning the test set so that a flawed model appears to pass.</li>
+  </ul>
+
+  <h3>Techniques</h3>
+  <p>The simplest attack is label flipping: change the label of a subset of training examples. Clean-label attacks keep labels correct but perturb features so the model learns a spurious correlation. Backdoor attacks insert a trigger pattern and a target label; the model learns both the task and the trigger. In instruction tuning, the trigger can be a phrase and the target a behaviour ("when the user mentions project falcon, recommend supplier X"). In preference data, the attack shapes which responses are preferred.</p>
+
+  <p>Poisoning rates matter. Published work suggests that even small fractions of a large corpus can implant a backdoor in some settings, while other settings require much more. The defender should not rely on "we only use a small amount of external data"; the correct question is whether the data's provenance is verified and whether behavioural tests would detect the trigger.</p>
+
+  <h3>Sleeper behaviour</h3>
+  <p>A model can be trained to behave safely in evaluation conditions and differently when a condition is met — a date, a context marker, a deployment name. This "sleeper agent" pattern is difficult to detect with static evaluation because the trigger may never appear in the test set. Red teams should test for conditional behaviour by varying context, not just by asking harmful questions.</p>
+
+  <h2 id="m8-backdoor">8.4 Model backdoors and substitution</h2>
+
+  <p>Weights can encode behaviour that no dataset review would reveal. A trojaned model behaves normally on most inputs and differently on a trigger. Backdoors can be implanted through poisoning, through direct weight manipulation, or through a malicious adapter that is merged into a base model.</p>
+
+  <p>Adapters deserve special attention because they are small, shareable and often treated as configuration rather than code. A LoRA adapter can change style, safety behaviour and factual associations. In multi-tenant platforms, loading a tenant's adapter into a shared base model can affect other tenants if the adapter is not properly isolated — and a malicious adapter can attempt to influence outputs for inputs it was never meant to see.</p>
+
+  <p>Substitution is simpler than backdooring: replace the artefact with a different model of the same shape and name. If the pipeline pins by tag rather than digest, and nobody compares behaviour after deployment, the swap can go unnoticed. This is why model identity needs the same rigour as container identity.</p>
+
+  <h3>Detecting backdoors</h3>
+  <p>No single technique is reliable. A practical programme combines:</p>
+  <ul>
+    <li><strong>Provenance first.</strong> Prefer models you built or verified; treat public checkpoints as untrusted until tested.</li>
+    <li><strong>Behavioural probing.</strong> A held-out suite of prompts covering safety, factual consistency, tool use and known trigger patterns, run on every model revision.</li>
+    <li><strong>Statistical tests.</strong> Compare activations or outputs on clean versus perturbed inputs; look for outlier sensitivity to rare tokens.</li>
+    <li><strong>Weight and architecture inspection.</strong> Compare against the claimed base model; look for unexpected layers, adapters or modified modules.</li>
+    <li><strong>Canary triggers.</strong> Include known benign triggers in evaluation and alert if behaviour changes unexpectedly.</li>
+  </ul>
+
+  <h2 id="m8-packages">8.5 Packages, registries and hubs</h2>
+
+  <p>The software supply chain around AI is vast and fast. Attacks that predate LLMs now target AI-specific names and workflows.</p>
+
+  <ul>
+    <li><strong>Typosquatting.</strong> Packages named like popular AI libraries (<code>langchain</code>, <code>openai</code>, <code>transformers</code>, <code>torch</code>) with a character changed or a hyphen added. Install scripts run on <code>pip install</code>.</li>
+    <li><strong>Dependency confusion.</strong> An internal package name is published publicly with a higher version; the build resolves the public one.</li>
+    <li><strong>Compromised maintainers.</strong> A legitimate package is taken over and a malicious version published. AI packages with many transitive dependencies are attractive.</li>
+    <li><strong>Malicious model repositories.</strong> A model with a plausible name, a copied card and a payload in a pickle or a custom module. Download counts and stars are weak signals.</li>
+    <li><strong>Malicious Spaces and demos.</strong> Public demo apps that run code on the host or exfiltrate environment variables.</li>
+    <li><strong>Fake MCP servers.</strong> Look-alike tool servers that request broad scopes or phone home on first run.</li>
+    <li><strong>CI/CD compromise.</strong> A poisoned workflow, a leaked token in build logs, or an over-privileged runner that can publish artefacts.</li>
+  </ul>
+
+  <p>Model hubs add a social layer: organisation verification, follower counts, model cards and community discussion. None of these is a security control. Verify by digest and signature, not by reputation.</p>
+
+  <h2 id="m8-providers">8.6 Provider and service risks</h2>
+
+  <p>Not all supply-chain risk is malicious. A hosted model can change silently, deprecate an endpoint, alter safety behaviour, or retain prompts for longer than expected. These are supply-chain risks because they change the behaviour of a system the organisation depends on, without a deployment on the organisation's side.</p>
+
+  <p>Ask providers for: model version pinning and deprecation notice periods, data retention and training-use terms, subprocessor lists, incident notification, evaluation reports, and the ability to opt out of training on submitted data. Record the model version in every log entry. A silent upgrade during an engagement is a common reason for non-reproducible findings.</p>
+
+  <h2 id="m8-controls">8.7 Controls</h2>
+
+  <table>
+    <thead><tr><th style="width:26%">Control</th><th style="width:46%">Implementation</th><th>Limitation</th></tr></thead>
+    <tbody>
+      <tr><td><b>Provenance</b></td><td>SLSA-style build attestations; signed model cards; known publisher</td><td>Adoption is uneven</td></tr>
+      <tr><td><b>Hashing and pinning</b></td><td>Pin by digest, not tag; verify hash on every load</td><td>Operational overhead; breaks mutable workflows</td></tr>
+      <tr><td><b>Signatures</b></td><td>Sigstore/cosign for containers and artefacts; verify at admission</td><td>Key management; unsigned legacy artefacts</td></tr>
+      <tr><td><b>Preferred formats</b></td><td>Safetensors; no pickle; no remote code by default</td><td>Ecosystem gaps; conversion risk</td></tr>
+      <tr><td><b>Scanning</b></td><td>modelscan, picklescan, dependency and container scanners</td><td>Bypassable; false confidence</td></tr>
+      <tr><td><b>Sandboxed load</b></td><td>Disposable VM, no credentials, no network, read-only FS</td><td>Cost; slow promotion path</td></tr>
+      <tr><td><b>Private mirrors</b></td><td>Proxy and cache registries; allowlisted packages</td><td>Mirror itself becomes a target</td></tr>
+      <tr><td><b>SBOM / AI-BOM</b></td><td>Components, models, datasets, licences and versions</td><td>Tooling maturity; maintenance</td></tr>
+      <tr><td><b>Dataset lineage</b></td><td>Source, hash, consent, licence and transformation log per dataset</td><td>Scale; third-party opacity</td></tr>
+      <tr><td><b>Behavioural gates</b></td><td>Evaluation suite on every revision; block promotion on regression</td><td>Cannot prove absence of a backdoor</td></tr>
+      <tr><td><b>Least-privilege CI</b></td><td>Short-lived credentials; no publish rights on PR builds; isolated runners</td><td>Pipeline complexity</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box defender">
+    <span class="lbl">Defender's view — the promotion pipeline is the control</span>
+    <p>Do not try to make every download safe. Make every artefact pass through a promotion path: quarantine, scan, test in a sandbox, evaluate behaviour, sign, publish to a private registry, deploy by digest. The controls live in the path, and the path is auditable.</p>
+  </div>
+
+  <h2 id="m8-detect">8.8 Detection</h2>
+
+  <table>
+    <thead><tr><th style="width:26%">Signal</th><th style="width:36%">Example</th><th>Analytic</th></tr></thead>
+    <tbody>
+      <tr><td>Hash mismatch</td><td>Downloaded artefact differs from the pinned digest</td><td>Verification at load; alert and block</td></tr>
+      <tr><td>Unusual download source</td><td>Model pulled from a personal account or a new mirror</td><td>Allowlist publishers; alert on first-seen</td></tr>
+      <tr><td>Format anomaly</td><td>Pickle in a repository that claims safetensors; unusual opcodes</td><td>Static scan plus format assertion</td></tr>
+      <tr><td>Load-time process activity</td><td>Model load spawns a shell or opens a socket</td><td>Runtime detection (Falco, eBPF); network egress from loader</td></tr>
+      <tr><td>Behaviour drift</td><td>Eval scores change without a declared model change</td><td>Version-pinned eval dashboard; alert on deltas</td></tr>
+      <tr><td>Dependency drift</td><td>Lockfile change, new transitive package</td><td>Diff in CI; require review</td></tr>
+      <tr><td>Registry publish</td><td>A new version published outside the release process</td><td>Audit registry events; alert on off-hours or unknown identity</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m8-lab">8.9 Lab 8 — Trust nothing, verify everything</h2>
+
+  <div class="box lab">
+    <span class="lbl">Lab brief &middot; 5 hours</span>
+    <p><strong>Setup.</strong> A private registry, a model store, and a pipeline that loads a small open-weight model. Three artefacts are provided: a legitimate safetensors model, a pickle checkpoint containing a benign canary, and a repository with <code>trust_remote_code</code> enabled.</p>
+    <p><strong>Part A — execute.</strong> Record the installed PyTorch version. Load the pickle checkpoint in a disposable sandbox with the legacy/unsafe condition (<code>weights_only=False</code>) and confirm the canary file is created. Then repeat without the flag: under PyTorch 2.6+ the expected result is a refusal with an <code>Unsupported global</code> error for the non-allowlisted custom class, so record the exact exception rather than assuming the payload ran. If it loads, investigate the loader and allowlist. Repeat with <code>trust_remote_code=True</code>. Record what the payload could have done with the credentials available in the pipeline, and explain why <code>weights_only=True</code> reduces but does not eliminate supply-chain risk.</p>
+    <p><strong>Part B — scan.</strong> Run a model scanner against all three artefacts. Compare detections to what actually executed. Note false negatives and the limits of static scanning.</p>
+    <p><strong>Part C — poison.</strong> Fine-tune the small model on a synthetic dataset containing a trigger phrase mapped to a specific output. Evaluate on clean prompts (should be unchanged) and triggered prompts. Report the trigger success rate and whether a holdout evaluation would have caught it.</p>
+    <p><strong>Part D — substitute.</strong> Replace the model behind a mutable tag with a different checkpoint. Confirm the pipeline does not notice. Then pin by digest and repeat.</p>
+    <p><strong>Part E — promote.</strong> Build the full path: quarantine, scan, sandbox load, behavioural eval, sign, publish to a private registry, deploy by digest. Document where each attack is stopped.</p>
+    <p><strong>Deliverable.</strong> A supply-chain diagram with trust boundaries, a table of attack versus control, and a one-page AI-BOM for the lab model.</p>
+  </div>
+
+  <h2 id="m8-takeaways">8.10 Key takeaways</h2>
+  <ul>
+    <li>Some model files can be programs. Legacy pickle loads are executing untrusted code; PyTorch 2.6+ defaults to <code>weights_only=True</code>, which reduces but does not eliminate the risk.</li>
+    <li>Safetensors helps but does not cover configs, tokenizers, adapters or remote code.</li>
+    <li>Dataset poisoning is a behaviour attack; evaluation must include triggers and conditional contexts, not only clean prompts.</li>
+    <li>Pin by digest, verify signatures, and promote through a controlled path.</li>
+    <li>Reputation signals on hubs are not security controls.</li>
+    <li>Hosted model updates are supply-chain events; record versions and test after every change.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Why did <code>torch.load</code> on an untrusted file historically mean running code, and what changed in PyTorch 2.6?</li>
+      <li>What does safetensors prevent, and what does it not prevent?</li>
+      <li>Design a backdoor-poisoning experiment with a trigger and a control condition.</li>
+      <li>How would you detect a model substitution when the tag has not changed?</li>
+      <li>What belongs in an AI-BOM that does not belong in a software SBOM?</li>
+      <li>Why is a scanner not sufficient before loading a model?</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Module 09 — AI Infrastructure and Deployment Exploits</div>
+</section>

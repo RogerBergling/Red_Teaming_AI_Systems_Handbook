@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 700 230" xmlns="http://www.w3.org/2000/svg" font-family="Liberation Sans, sans-serif" width="700" height="230">
+      <defs><marker id="a2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#7b8a9a"/></marker></defs>
+      <g font-size="8.4">
+        <rect x="12" y="18" width="140" height="46" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="22" y="34" font-weight="bold" fill="#33465a">Public sources</text>
+        <text x="22" y="46" font-size="7.4" fill="#5b6b7c">docs · job posts · repos</text>
+        <text x="22" y="56" font-size="7.4" fill="#5b6b7c">hubs · registries · CT logs</text>
+
+        <rect x="12" y="86" width="140" height="46" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="22" y="102" font-weight="bold" fill="#33465a">Network surface</text>
+        <text x="22" y="114" font-size="7.4" fill="#5b6b7c">DNS · TLS · ports · paths</text>
+        <text x="22" y="124" font-size="7.4" fill="#5b6b7c">headers · errors · latency</text>
+
+        <rect x="12" y="154" width="140" height="46" rx="3" fill="#f4f6f8" stroke="#94a3b8"/>
+        <text x="22" y="170" font-weight="bold" fill="#33465a">Identity surface</text>
+        <text x="22" y="182" font-size="7.4" fill="#5b6b7c">OAuth grants · agents</text>
+        <text x="22" y="192" font-size="7.4" fill="#5b6b7c">service accounts · keys</text>
+
+        <path d="M152 41 H210 M152 109 H210 M152 177 H210" stroke="#7b8a9a" stroke-width="0.8" marker-end="url(#a2)"/>
+
+        <rect x="215" y="60" width="150" height="100" rx="3" fill="#eef4f6" stroke="#0f766e"/>
+        <text x="227" y="80" font-weight="bold" fill="#0f4f4a">Target model</text>
+        <text x="227" y="96" font-size="7.4" fill="#3d5a5a">asset register</text>
+        <text x="227" y="108" font-size="7.4" fill="#3d5a5a">capability graph</text>
+        <text x="227" y="120" font-size="7.4" fill="#3d5a5a">data-flow map</text>
+        <text x="227" y="132" font-size="7.4" fill="#3d5a5a">exposure ranking</text>
+        <text x="227" y="144" font-size="7.4" fill="#3d5a5a">confidence notes</text>
+
+        <path d="M365 110 H420" stroke="#7b8a9a" stroke-width="0.8" marker-end="url(#a2)"/>
+
+        <rect x="425" y="30" width="120" height="40" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="435" y="47" font-weight="bold" fill="#7a3a08">Hypotheses</text>
+        <text x="435" y="59" font-size="7.4" fill="#7a5a3a">what to test, where</text>
+
+        <rect x="425" y="90" width="120" height="40" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="435" y="107" font-weight="bold" fill="#7a3a08">Attack paths</text>
+        <text x="435" y="119" font-size="7.4" fill="#7a5a3a">entry → capability → impact</text>
+
+        <rect x="425" y="150" width="120" height="40" rx="3" fill="#fdf3e7" stroke="#b45309"/>
+        <text x="435" y="167" font-weight="bold" fill="#7a3a08">Detection tests</text>
+        <text x="435" y="179" font-size="7.4" fill="#7a5a3a">what should fire</text>
+
+        <path d="M570 50 L600 50 L600 110 L570 110" fill="none" stroke="#7b8a9a" stroke-width="0.8" marker-end="url(#a2)"/>
+        <path d="M570 170 L600 170 L600 110" fill="none" stroke="#7b8a9a" stroke-width="0.8"/>
+        <text x="606" y="104" font-size="7.2" fill="#5b6b7c">engagement</text>
+        <text x="606" y="114" font-size="7.2" fill="#5b6b7c">plan</text>
+      </g>
+    </svg>

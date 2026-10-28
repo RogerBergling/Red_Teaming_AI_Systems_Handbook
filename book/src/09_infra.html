@@ -1,0 +1,176 @@
+<section class="chapter">
+  <div class="chapter-head">
+    <span class="module-no">Module 09</span>
+    <h1 id="m9">AI Infrastructure and Deployment Exploits</h1>
+    <p class="dek">The platform beneath the model: inference servers, Kubernetes, cloud AI services, notebooks, registries and the identities that bind them.</p>
+  </div>
+
+  <div class="objectives">
+    <div class="lbl">Learning objectives</div>
+    <ul>
+      <li>Draw a reference architecture for a production AI platform and identify its exposed services.</li>
+      <li>Exploit common misconfigurations in inference servers, dashboards and vector databases.</li>
+      <li>Trace an SSRF from an AI workload to cloud credentials and quantify the blast radius.</li>
+      <li>Escalate from a notebook or pod to cluster or cloud control-plane access.</li>
+      <li>Apply zero-trust controls: workload identity, default-deny networking, admission policy and quotas.</li>
+      <li>Detect infrastructure attacks using cloud, Kubernetes and runtime telemetry.</li>
+    </ul>
+  </div>
+
+  <p class="lede">AI infrastructure is ordinary infrastructure with an unusual workload profile: large images, GPU nodes, shared notebooks, many public-facing APIs, and data scientists who need broad access to move quickly. The security debt that accumulates around these workloads is familiar — exposed dashboards, over-privileged service accounts, permissive networks — but the impact is amplified by what the workloads can reach.</p>
+
+  <p>A compromised inference pod is not just a compromised pod. It may hold model weights worth millions, credentials for the model registry, access to the training data lake, and a network path to the vector database that holds the organisation's knowledge. This module follows the path from an exposed service to control of the AI platform.</p>
+
+  <h2 id="m9-arch">9.1 Reference architecture</h2>
+
+  <table>
+    <thead><tr><th style="width:22%">Layer</th><th style="width:42%">Typical components</th><th>Common exposure</th></tr></thead>
+    <tbody>
+      <tr><td><b>Edge &amp; gateway</b></td><td>API gateway, WAF, LLM proxy (LiteLLM, Envoy AI Gateway), auth service</td><td>Weak auth, key leakage, unrestricted model routing</td></tr>
+      <tr><td><b>Inference</b></td><td>vLLM, SGLang, TGI (maintenance), Triton, TorchServe (legacy), Ollama, managed endpoints</td><td>No auth, model load endpoints, metrics, path traversal</td></tr>
+      <tr><td><b>Orchestration</b></td><td>Kubernetes, KServe, Ray, Kubeflow, Airflow, Argo</td><td>Dashboard RCE, over-privileged service accounts, hostPath</td></tr>
+      <tr><td><b>Data</b></td><td>Object storage, vector DB, feature store, warehouses</td><td>Public buckets, unauthenticated vector APIs, snapshot exposure</td></tr>
+      <tr><td><b>Experimentation</b></td><td>Jupyter, MLflow, W&amp;B, notebooks, dev namespaces</td><td>No auth, token in URL, cluster-admin bindings</td></tr>
+      <tr><td><b>Registry</b></td><td>Container registry, model registry, artefact store</td><td>Mutable tags, anonymous pull, weak CI credentials</td></tr>
+      <tr><td><b>Observability</b></td><td>Prometheus, Grafana, Langfuse, Phoenix, log store</td><td>Unredacted prompts, broad read access, public dashboards</td></tr>
+      <tr><td><b>Identity</b></td><td>Cloud IAM, workload identity, Vault, KMS</td><td>Long-lived keys, wildcard roles, secret sprawl</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m9-exposed">9.2 The usual suspects</h2>
+
+  <h3>Dashboards and notebooks</h3>
+  <p>Jupyter, MLflow, Ray, Kubeflow, Airflow and Grafana are designed for trusted networks and are frequently deployed with authentication disabled, default credentials or a token embedded in a URL. A notebook is remote code execution by design; an MLflow instance often has access to artefacts and the model registry; a Ray dashboard can submit jobs to the cluster. These services are the fastest route from network access to control-plane access.</p>
+
+  <h3>Inference servers</h3>
+  <p>Most inference servers expose more than <code>/v1/chat/completions</code>. Depending on the product, you may find model listing, model loading and unloading, adapter loading, metrics, health checks, tokenizer utilities and administrative endpoints. Two classes of issue recur:</p>
+  <ul>
+    <li><strong>Unauthenticated inference and administration.</strong> Default deployments often have no authentication. Model listing reveals what is deployed; inference allows free use; administrative endpoints allow model changes or denial of service.</li>
+    <li><strong>Model loading as code execution.</strong> An endpoint that loads a model from a path or URI can be pointed at an attacker-controlled artefact. If the loader supports a legacy pickle path, explicitly disables <code>weights_only</code>, or executes remote code, the result is code execution in the inference pod — with whatever cloud identity that pod holds. PyTorch 2.6+ defaults <code>torch.load</code> to <code>weights_only=True</code>, which reduces this risk but does not cover every loader or artefact type; check the actual load call and the server's format support.</li>
+  </ul>
+
+  <p>Path traversal in static file handlers, template injection in metrics pages and unsafe deserialisation in management APIs have all appeared in this class of software. The lesson is not a list of CVEs; it is that the inference server is a network service with a large attack surface and a short patching history.</p>
+
+  <h3>Vector databases and data services</h3>
+  <p>Qdrant, Weaviate, Chroma and Milvus commonly run without authentication inside a cluster. Their APIs allow collection listing, scrolling and deletion. A single reachable instance can disclose or destroy the knowledge base. Object storage holding snapshots is often public or accessible with a stolen workload token.</p>
+
+  <h3>Metadata services and SSRF</h3>
+  <p>Any AI workload that fetches a URL — a browser tool, a document loader, an image fetcher, a webhook — can be pointed at the cloud metadata service. On providers that still allow unauthenticated instance metadata, a single request can return temporary credentials for the node's role. From there, the attacker enumerates permissions and moves to the model registry, data lake or control plane.</p>
+
+  <div class="codeline-lbl">The SSRF-to-credentials chain, in the abstract</div>
+<pre>agent tool → fetch(user-controlled URL)
+            → http://169.254.169.254/latest/meta-data/iam/security-credentials/&lt;role&gt;
+            → temporary access key + token
+            → cloud API enumeration
+            → model registry / object storage / training data</pre>
+
+  <p>The mitigation is layered: block link-local addresses at the network layer, require IMDSv2 with hop limits, avoid node roles with broad permissions, and give each workload its own narrowly scoped identity. Prompt-level instructions not to fetch internal URLs are not a control.</p>
+
+  <h2 id="m9-k8s">9.3 Kubernetes and container specifics</h2>
+
+  <table>
+    <thead><tr><th style="width:26%">Weakness</th><th style="width:38%">How it is exploited</th><th>Control</th></tr></thead>
+    <tbody>
+      <tr><td>Automounted service account token</td><td>Read the token from the pod and call the API server</td><td><code>automountServiceAccountToken: false</code>; projected, audience-bound tokens</td></tr>
+      <tr><td>Over-privileged RBAC</td><td>List secrets, create pods, bind roles</td><td>Least privilege; no wildcard verbs; namespace scoping</td></tr>
+      <tr><td>Privileged or hostPath pods</td><td>Mount the host filesystem; escape the container</td><td>Pod Security Standards; admission policy; read-only root</td></tr>
+      <tr><td>No network policy</td><td>Reach every service in the cluster, including metadata and databases</td><td>Default-deny; explicit allowlists; egress proxy</td></tr>
+      <tr><td>Shared PVCs</td><td>Read other tenants' models and data</td><td>Per-tenant volumes; access modes; encryption</td></tr>
+      <tr><td>GPU device plugin exposure</td><td>Allocate GPUs for cryptojacking; starve inference</td><td>Quotas, priority classes, admission limits</td></tr>
+      <tr><td>Mutable image tags</td><td>Swap the inference image</td><td>Digest pinning; signature verification at admission</td></tr>
+      <tr><td>Registry pull secrets</td><td>Read credentials and pull private images</td><td>Workload identity for registries; short-lived tokens</td></tr>
+      <tr><td>No resource quotas</td><td>Exhaust cluster capacity; cost amplification</td><td>Namespace quotas; limit ranges; budget alerts</td></tr>
+    </tbody>
+  </table>
+
+  <p>Notebook-to-cluster escalation deserves emphasis because it is common in ML platforms. A notebook pod may run with a service account that can create pods, or mount a Docker socket for "convenience". Either grants effective cluster control. Data science platforms should run notebooks in a dedicated namespace with a restricted service account and no access to the host runtime.</p>
+
+  <h2 id="m9-cloud">9.4 Cloud AI services</h2>
+
+  <p>Managed AI services reduce operational burden and introduce provider-specific trust relationships. Recurring issues:</p>
+  <ul>
+    <li><strong>Execution roles with broad permissions.</strong> A notebook or training job role that can read every bucket in the account, or assume other roles, turns a single injected notebook into account-wide access.</li>
+    <li><strong>Public endpoints.</strong> Model endpoints, notebook proxies and pipeline UIs exposed to the internet without network restrictions.</li>
+    <li><strong>Cross-account trust.</strong> Service roles that trust a partner account or a wildcard principal, enabling confused-deputy access to customer resources.</li>
+    <li><strong>Model registry and artefact permissions.</strong> Anyone who can write an artefact can influence the next deployment.</li>
+    <li><strong>Logging gaps.</strong> Data-plane logs for inference may be off by default; control-plane logs may not capture model invocations.</li>
+  </ul>
+
+  <p>Test the identity boundary, not just the service: what can the workload's role do, what can it assume, and what happens if the workload is compromised? A useful exercise is to take the least-privileged workload in the platform and walk the permission graph to the most sensitive resource.</p>
+
+  <h2 id="m9-agent">9.5 When the agent has infrastructure access</h2>
+
+  <p>Some agents are given <code>kubectl</code>, cloud CLIs, Terraform or CI tokens to "help with operations". This is the highest-blast-radius configuration in the course. A prompt injection that reaches such an agent is no longer a content problem; it is an infrastructure incident.</p>
+
+  <p>Restrict operational agents to read-only, narrowly scoped roles, require human approval for any mutating command, run them in a separate cluster with no production credentials, and log every command with its arguments. Prefer declarative, reviewed change paths over direct CLI access. If an agent must have write access, bound it to a specific namespace and resource type, and make the boundary enforceable by the API server rather than by the prompt.</p>
+
+  <h2 id="m9-detect">9.6 Detection</h2>
+
+  <table>
+    <thead><tr><th style="width:24%">Telemetry</th><th style="width:36%">Signal</th><th>Analytic</th></tr></thead>
+    <tbody>
+      <tr><td>Cloud audit logs</td><td>Role assumption, secret access, bucket listing from a workload identity</td><td>Baseline per workload; alert on new API calls and privilege escalation</td></tr>
+      <tr><td>Kubernetes audit</td><td>Pod creation with hostPath, privileged, or a new service account</td><td>Policy violations; alert on sensitive verbs</td></tr>
+      <tr><td>Runtime (Falco/eBPF)</td><td>Shell spawned in an inference container; unexpected outbound connection</td><td>Deny and alert; no shell in production images</td></tr>
+      <tr><td>Network flow</td><td>Inference pod → metadata service or internet</td><td>Default-deny; alert on blocked attempts and allowlist deviations</td></tr>
+      <tr><td>Model server logs</td><td>Model load, adapter load, admin API calls</td><td>Alert on any load from an unapproved source</td></tr>
+      <tr><td>Registry</td><td>Image pull by digest that is not in the approved set</td><td>Admission control; alert on verification failure</td></tr>
+      <tr><td>Cost</td><td>GPU usage spike outside inference hours</td><td>Anomaly detection; hard budget caps</td></tr>
+      <tr><td>Dashboard access</td><td>Login to MLflow/Jupyter from a new source</td><td>SSO enforcement; impossible-travel style alerts</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="m9-controls">9.7 Controls</h2>
+
+  <ul>
+    <li><strong>Authenticate every service.</strong> No unauthenticated dashboards, vector databases or inference endpoints, even inside the cluster. Use SSO and workload identity.</li>
+    <li><strong>Default-deny networking.</strong> Explicit allowlists between components; egress through a proxy with domain allowlists; block link-local and metadata ranges.</li>
+    <li><strong>Workload identity, not static keys.</strong> Short-lived, audience-bound tokens; no long-lived cloud keys in pods or notebooks.</li>
+    <li><strong>Admission policy.</strong> Signed images, no privileged pods, no hostPath, resource quotas, read-only root filesystems.</li>
+    <li><strong>Separate environments.</strong> Dev, staging and production clusters with separate identities and no shared storage.</li>
+    <li><strong>Patch the AI stack.</strong> Inference servers, parsers and GPU drivers are software; track them like any other internet-facing service.</li>
+    <li><strong>Tenant isolation.</strong> Namespaces, quotas, network policy and per-tenant encryption keys for multi-tenant platforms.</li>
+    <li><strong>Backups and immutability.</strong> Model artefacts and vector indexes need versioned, immutable backups; ransomware against an AI platform is a realistic scenario.</li>
+  </ul>
+
+  <div class="box defender">
+    <span class="lbl">Defender's view — map the identity graph</span>
+    <p>Most infrastructure findings are identity findings. Draw the graph: workload → service account → cloud role → assumable roles → data stores. The shortest path from any internet-reachable service to a sensitive store is the number that matters. Reduce it before adding more detection.</p>
+  </div>
+
+  <h2 id="m9-lab">9.8 Lab 9 — From exposed endpoint to cluster</h2>
+
+  <div class="box lab">
+    <span class="lbl">Lab brief &middot; 6 hours</span>
+    <p><strong>Setup.</strong> A kind or k3d cluster with: an unauthenticated vLLM or Ollama pod; an MLflow instance with a permissive service account; a notebook pod with an automounted token; a Qdrant instance; a mock metadata service reachable from the cluster; and a NetworkPolicy-free default namespace.</p>
+    <p><strong>Part A — discovery.</strong> From a single foothold pod, enumerate services, endpoints and versions. Identify which are unauthenticated. Map the service-account permissions available to each.</p>
+    <p><strong>Part B — model server.</strong> Use the model load or admin endpoint to load a canary artefact from an object store you control. Confirm code execution via a marker file and record the pod's cloud identity (mocked).</p>
+    <p><strong>Part C — SSRF.</strong> Use a document-loading tool to reach the mock metadata service and retrieve credentials. Enumerate the mocked cloud permissions and identify the most sensitive reachable resource.</p>
+    <p><strong>Part D — persistence.</strong> Create a service account token, deploy a benign pod that calls home to a mock listener, and confirm it survives a rollout.</p>
+    <p><strong>Part E — defend.</strong> Apply default-deny network policy, disable token automounting, restrict RBAC, require image signatures, block metadata access, and add authentication to the data services. Re-run B–D and report what is blocked, detected or still possible.</p>
+    <p><strong>Deliverable.</strong> An attack-path diagram with the identity graph overlaid, plus a remediation plan ordered by shortest path to sensitive data.</p>
+  </div>
+
+  <h2 id="m9-takeaways">9.9 Key takeaways</h2>
+  <ul>
+    <li>AI infrastructure is ordinary infrastructure with high-value data and a fast-moving patch surface.</li>
+    <li>Unauthenticated dashboards and inference servers are the most common entry point.</li>
+    <li>Model loading is code execution; treat load endpoints as administrative.</li>
+    <li>SSRF to metadata is a direct path from an AI workload to cloud credentials.</li>
+    <li>Notebooks and pods often have more cluster authority than their users realise.</li>
+    <li>Draw the identity graph; the shortest path to sensitive data is the risk metric.</li>
+  </ul>
+
+  <div class="quiz">
+    <div class="lbl">Knowledge check</div>
+    <ol>
+      <li>Why is an unauthenticated MLflow or Jupyter instance often equivalent to cluster compromise?</li>
+      <li>What makes a model load endpoint an administrative interface?</li>
+      <li>Describe the controls that break the SSRF-to-cloud-credentials chain at three different layers.</li>
+      <li>How does an automounted service account token enable lateral movement?</li>
+      <li>What is the first control you would apply to a multi-tenant inference platform, and why?</li>
+    </ol>
+  </div>
+
+  <div class="endmark">Next &middot; Module 10 — Threat Modeling for AI-Enabled Targets</div>
+</section>
