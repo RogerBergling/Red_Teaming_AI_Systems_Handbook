@@ -18,7 +18,7 @@
   <div class="deepdive">
     <span class="lbl">Deep dive &middot; the corpus is part of the attack surface</span>
 
-    <p>A RAG pipeline has five stages: ingest, chunk, embed, retrieve, generate. Each stage has a different failure mode, and the security properties of the pipeline are only as strong as the weakest stage. The retrieval step is usually a nearest-neighbour search over vectors, optionally combined with lexical search and a reranker.</p>
+    <p>A RAG pipeline can be decomposed into five logical stages: ingest, chunk, embed, retrieve and generate. Parsing, indexing and prompt assembly sit inside those stages; each stage has a different failure mode, and the security properties of the pipeline are only as strong as the weakest stage. The retrieval step is usually a nearest-neighbour search over vectors, optionally combined with lexical search and a reranker.</p>
 
     <div class="formula">
       <span class="eq">sim(<b>q</b>, <b>d</b>) = <b>q</b>·<b>d</b> / (‖<b>q</b>‖ ‖<b>d</b>‖) &nbsp;&nbsp;&nbsp; score(<i>q</i>,<i>d</i>) = α · sim<sub>dense</sub> + (1−α) · score<sub>BM25</sub></span>

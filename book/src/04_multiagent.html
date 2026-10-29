@@ -118,7 +118,7 @@
 
   <p>Read two version fields separately. The top-level <code>version</code> is the <em>agent's build version</em> — an arbitrary label chosen by the operator. The <code>protocolVersion</code> inside each <code>supportedInterfaces</code> entry is the wire protocol the endpoint speaks. The 1.0.1 patch is not separately negotiated: clients send <code>A2A-Version: 1.0</code> and the interface advertises <code>"1.0"</code>. A card that says <code>"version": "1.0.1"</code> at the top level is telling you about the build, not the protocol, and treating the two as the same is a common source of mis-scoped tests.</p>
 
-  <div class="codeline-lbl">Abridged agent card — the fields a tester reads first</div>
+  <div class="codeline-lbl">Abridged agent card — the fields a tester reads first; required fields such as defaultInputModes, defaultOutputModes and skill names are omitted for space</div>
 <pre>{
   "name": "invoice-reconciliation-agent",
   "description": "Reconciles supplier invoices against purchase orders.",

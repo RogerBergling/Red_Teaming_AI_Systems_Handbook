@@ -4,19 +4,19 @@ subtitle: "A practitioner's handbook for assessing the security of large languag
 author: "AI Security Curriculum"
 edition: "1.1"
 date: "2026"
-description: "Course handbook for an eleven-module red team curriculum, with two foundation primers on tokens, transformers and neural networks and a plain-language track in every chapter."
+description: "Course handbook for an eleven-module red team curriculum, with two foundation primers on tokens, transformers and neural networks and a plain-language track in every module and foundation primer."
 ---
 
 # Red Teaming AI Systems
 
-*A practitioner's handbook for assessing the security of large language models, autonomous agents, retrieval pipelines and the infrastructure that runs them — with a plain-language track for every chapter.*
+*A practitioner's handbook for assessing the security of large language models, autonomous agents, retrieval pipelines and the infrastructure that runs them — with a plain-language track for every module and foundation primer.*
 
 **Professional security curriculum · Edition 1.1**
 
 - Eleven modules + two foundation primers · from tokens and neurons to a full-scope capstone
-- Two tracks in every chapter · the short version for everyone, then the deep technical dive
+- Two tracks in every module and primer · the short version for everyone, then the deep technical dive
 - For red team operators, AI engineers, detection engineers and security architects
-- Companion material · lab builds, threat models, detection queries and reporting templates
+- Companion material · lab builds, threat models, detection guidance and reporting templates
 
 > Authorised testing only · Defensive guidance included throughout — Version 1.1 · 2026
 
@@ -40,18 +40,18 @@ The material is deliberately opinionated about two things. First, **AI security 
 
 - **Audience.** Security practitioners moving into AI red teaming; ML engineers who need an adversary's view; blue teams building AI detections; architects designing agentic systems.
 - **Prerequisites.** Comfort with Linux, HTTP, Python and containerisation. Basic familiarity with LLM APIs and vector search helps but is taught from first principles in Modules 1 and 5.
-- **Pacing.** A 12-week instructor-led course, or a five-day intensive using Modules 1–2 as pre-reading. The capstone is designed for two to three days of lab time.
+- **Pacing.** A 12-week instructor-led course, or a five-day intensive using Modules 1–2 as pre-reading. The capstone is designed as a separate five-day lab engagement.
 - **Lab requirement.** One host with 32 GB RAM (GPU optional), Docker or Podman, and no route to production systems. Appendix A contains the build.
 
-### Two tracks through every chapter
+### Two tracks through every module and primer
 
-Every module and both foundation primers are written on two levels. **The short version** appears first, in a pale teal panel: no mathematics, no assumed ML background, just the idea, the moving parts and why they matter. It is written for the executive, the auditor, the junior analyst and the experienced operator who wants the shape of the chapter before the detail. **The deep dive** follows immediately: the same subject treated technically, with architecture, equations, failure modes, evidence and controls. Later in each chapter a shaded *Deep dive* panel adds material for specialists — formalisms, attack trees, mathematics or measurement detail that would slow down a first read. You can read a chapter in either track and still follow the argument; reading both gives you the full picture.
+Every module and both foundation primers are written on two levels. **The short version** appears first, in a pale teal panel: no mathematics, no assumed ML background, just the idea, the moving parts and why they matter. It is written for the executive, the auditor, the junior analyst and the experienced operator who wants the shape of the module before the detail. **The deep dive** follows immediately: the same subject treated technically, with architecture, equations, failure modes, evidence and controls. Later in each module and primer a shaded *Deep dive* panel adds material for specialists — formalisms, attack trees, mathematics or measurement detail that would slow down a first read. You can read a module or primer in either track and still follow the argument; reading both gives you the full picture.
 
 The two foundation primers in Part 0 — *How AI Reads: Tokens and Transformers* and *How Neural Networks Learn* — assume no prior machine learning. They explain how text becomes tokens, how attention mixes context, how a network is trained by gradient descent, and where each of those mechanisms becomes an attack surface. Readers with an ML background can treat them as a reference; readers without one should read them before Module 1.
 
 ### Structure of each module
 
-Every module opens with learning objectives and a short framing of why the topic matters to an adversary. The body moves through architecture, attack surface, techniques, a worked lab, detection and controls. Modules close with knowledge checks and a short list of primary sources. **Field note** boxes contain operator judgment that does not fit neatly into a procedure; **Defender's view** boxes describe what the technique looks like in telemetry; **Lab** boxes give the exercise brief. **The short version** and **The deep dive** labels mark the two explanatory tracks described above.
+Every module opens with learning objectives and a short framing of why the topic matters to an adversary. The body moves through architecture, attack surface, techniques, a worked lab, detection and controls. Modules close with knowledge checks and key takeaways; primary sources are collected in Appendix F. **Field note** boxes contain operator judgment that does not fit neatly into a procedure; **Defender's view** boxes describe what the technique looks like in telemetry; **Lab** boxes give the exercise brief. **The short version** and **The deep dive** labels mark the two explanatory tracks described above.
 
 ### Conventions
 
@@ -204,7 +204,7 @@ It is not a catalogue of exploits for a named commercial product, and it does no
     - [9.7 Controls](#m9-controls)
     - [9.8 Lab 9 — From exposed endpoint to cluster](#m9-lab)
     - [9.9 Key takeaways](#m9-takeaways)
-  - [Threat Modeling for AI-Enabled Targets](#m10)
+  - [Threat Modelling for AI-Enabled Targets](#m10)
     - [10.1 Frameworks and where each fits](#m10-frameworks)
     - [10.2 The process](#m10-process)
     - [10.3 Assets and classification](#m10-assets)
@@ -883,9 +883,9 @@ A chatbot that can only emit text can embarrass its owner. An agent that can sen
 
 Training data, retrieval corpora and embeddings are assets in their own right, and they are frequently sensitive. Embeddings were long treated as opaque and therefore harmless; research on inversion has shown that they can leak substantial verbatim content. Logs of prompts and completions become a new store of personal and confidential data, often with weaker access control than the systems they describe.
 
-![Figure 1.1 — The six planes of an AI system.](Red_Teaming_AI_Systems_Handbook_figures/figure-1-1.svg)
+![Figure 1.1 — The AI system stack.](Red_Teaming_AI_Systems_Handbook_figures/figure-1-1.svg)
 
-**Figure 1.1 — The six planes of an AI system.** Traditional controls concentrate on the application and platform planes. AI-specific risk concentrates in the retrieval, tool and model planes, where untrusted content is interpreted as instruction and where learned behaviour substitutes for specified logic.
+**Figure 1.1 — The AI system stack.** The left column shows four infrastructure planes; the centre shows six application layers; the right column shows external inputs and third parties. Traditional controls concentrate on the application and platform layers. AI-specific risk concentrates in the retrieval, tool and model layers, where untrusted content is interpreted as instruction and where learned behaviour substitutes for specified logic.
 
 ## <a id="m1-anatomy"></a>1.2 Anatomy of an AI-enabled target
 
@@ -932,7 +932,7 @@ Frameworks are useful for coverage and communication, not as a substitute for th
 
 **OWASP Top 10 for LLM Applications (2026)** gives a compact risk taxonomy: prompt injection (LLM01), sensitive information disclosure (LLM02), excessive agency (LLM03), supply chain (LLM04), data and model poisoning (LLM05), unbounded consumption (LLM06), misinformation (LLM07), hidden context exposure (LLM08), vector and embedding weaknesses (LLM09) and improper output handling (LLM10). The 2026 edition, published on 3 August 2026, kept the ten categories but moved eight of them and renamed system prompt leakage as hidden context exposure. It is excellent for awareness and control mapping, less useful for planning an engagement because the categories overlap. Check the edition before quoting an identifier: LLM03:2026 is excessive agency, not supply chain.
 
-**OWASP Top 10 for Agentic Applications (2026)** and the **Agent Control Standard (2026)**, published in September 2026, extend this to agent goal hijack (ASI01), tool misuse and exploitation (ASI02), identity and privilege abuse (ASI03), agentic supply chain vulnerabilities (ASI04), unexpected code execution (ASI05), memory and context poisoning (ASI06), insecure inter-agent communication (ASI07), cascading failures (ASI08), human-agent trust exploitation (ASI09) and rogue agents (ASI10). Where the LLM Top 10 treats the model as the centre, the agentic list and the Control Standard treat the *system of agents* as the centre and describe the controls expected around it.
+**OWASP Top 10 for Agentic Applications (2026)**, published in December 2025, and the **Agent Control Standard (2026)**, published in September 2026, extend this to agent goal hijack (ASI01), tool misuse and exploitation (ASI02), identity and privilege abuse (ASI03), agentic supply chain vulnerabilities (ASI04), unexpected code execution (ASI05), memory and context poisoning (ASI06), insecure inter-agent communication (ASI07), cascading failures (ASI08), human-agent trust exploitation (ASI09) and rogue agents (ASI10). Where the LLM Top 10 treats the model as the centre, the agentic list and the Control Standard treat the *system of agents* as the centre and describe the controls expected around it.
 
 **NIST AI RMF** (Govern, Map, Measure, Manage) is the governance vocabulary that risk committees and regulators recognise. The *Adversarial ML Taxonomy* in NIST AI 100-2 separates evasion, poisoning and privacy attacks, which is a useful check that a test plan covers all three rather than only prompt injection. ISO/IEC 42001 provides the management-system wrapper; the EU AI Act adds legal obligations for general-purpose and high-risk systems that shape what an organisation must be able to evidence.
 
@@ -1567,7 +1567,7 @@ No single control survives a determined indirect injection. The goal is to make 
 >
 > ### The tool call is the authorisation event
 >
-> Many agent implementations historically authorize tool availability more coarsely than individual actions: they check whether a tool exists, not whether this user, in this task, should be allowed to invoke it with these arguments. That gap produces the classic **confused deputy**: the agent holds a powerful credential, the attacker cannot use it directly, but the attacker can persuade the agent to use it on their behalf. The fix is not a better system prompt. It is per-action authorisation in deterministic code: bind the tool call to the end user's identity, constrain the arguments, require approval for irreversible or high-value actions, and log the decision with the identity that executed it.
+> Many agent implementations historically authorise tool availability more coarsely than individual actions: they check whether a tool exists, not whether this user, in this task, should be allowed to invoke it with these arguments. That gap produces the classic **confused deputy**: the agent holds a powerful credential, the attacker cannot use it directly, but the attacker can persuade the agent to use it on their behalf. The fix is not a better system prompt. It is per-action authorisation in deterministic code: bind the tool call to the end user's identity, constrain the arguments, require approval for irreversible or high-value actions, and log the decision with the identity that executed it.
 >
 > | Tool class | Abuse pattern | Minimum control |
 > | --- | --- | --- |
@@ -1705,7 +1705,7 @@ A typical agent card is a gift to a red team. It states what the agent does, whi
 
 Read two version fields separately. The top-level `version` is the *agent's build version* — an arbitrary label chosen by the operator. The `protocolVersion` inside each `supportedInterfaces` entry is the wire protocol the endpoint speaks. The 1.0.1 patch is not separately negotiated: clients send `A2A-Version: 1.0` and the interface advertises `"1.0"`. A card that says `"version": "1.0.1"` at the top level is telling you about the build, not the protocol, and treating the two as the same is a common source of mis-scoped tests.
 
-Abridged agent card — the fields a tester reads first
+Abridged agent card — the fields a tester reads first; required fields such as defaultInputModes, defaultOutputModes and skill names are omitted for space
 
 ```
 {
@@ -1825,7 +1825,7 @@ Namespace memory and blackboards per task and per tenant; attribute every write;
 > >
 > > *Where:* If the subset relation fails, the chain has **privilege amplification**. Most real multi-agent vulnerabilities are violations of this line, not failures of the language model.
 >
-> Classical delegation uses **capability attenuation**: a token can be narrowed but never widened as it passes down the chain. Scopes, downscoping and token exchange provide the authorisation attenuation. OAuth 2.1 resource indicators and audience-restricted tokens complement that by limiting *where* a token can be used — they constrain the resource and audience, not the privileges themselves, and audience restriction does not by itself guarantee that authority narrows on each delegation hop. RFC 8707 keeps resource/audience distinct from scope, so audience restriction is not a substitute for downscoping. A2A's security schemes can carry attenuated authority, but only if each server validates the token audience and the task scope rather than accepting any bearer token that reaches it. Token passthrough — accepting a token issued for another service — is the most common implementation mistake, because it turns every agent into a potential deputy for every other service.
+> Classical delegation uses **capability attenuation**: a token can be narrowed but never widened as it passes down the chain. Scopes, downscoping and token exchange provide the authorisation attenuation. Resource indicators and audience-restricted tokens complement that by limiting *where* a token can be used — they constrain the resource and audience, not the privileges themselves, and audience restriction does not by itself guarantee that authority narrows on each delegation hop. RFC 8707 keeps resource/audience distinct from scope, so audience restriction is not a substitute for downscoping. A2A's security schemes can carry attenuated authority, but only if each server validates the token audience and the task scope rather than accepting any bearer token that reaches it. Token passthrough — accepting a token issued for another service — is the most common implementation mistake, because it turns every agent into a potential deputy for every other service.
 >
 > ### Attack classes and their preconditions
 >
@@ -2087,7 +2087,7 @@ Volume is usually small per request, but RAG makes targeted extraction efficient
 
 > **Deep dive · the corpus is part of the attack surface**
 >
-> A RAG pipeline has five stages: ingest, chunk, embed, retrieve, generate. Each stage has a different failure mode, and the security properties of the pipeline are only as strong as the weakest stage. The retrieval step is usually a nearest-neighbour search over vectors, optionally combined with lexical search and a reranker.
+> A RAG pipeline can be decomposed into five logical stages: ingest, chunk, embed, retrieve and generate. Parsing, indexing and prompt assembly sit inside those stages; each stage has a different failure mode, and the security properties of the pipeline are only as strong as the weakest stage. The retrieval step is usually a nearest-neighbour search over vectors, optionally combined with lexical search and a reranker.
 >
 > > sim(**q**, **d**) = **q**·**d** / (‖**q**‖ ‖**d**‖)     score(*q*,*d*) = α · sim<sub>dense</sub> + (1−α) · score<sub>BM25</sub>
 > >
@@ -2458,11 +2458,11 @@ That combination — **natural-language descriptions, dynamic discovery, third-p
 
 > **Version pin — MCP 2026-07-28**
 >
-> This chapter describes the **2026-07-28** specification, the largest revision since MCP launched. The modern protocol has a **stateless core**: the `initialize`/`initialized` handshake and the `Mcp-Session-Id` session mechanism of the 2025 era are gone. Each request is self-describing and carries the protocol version and client capabilities in `_meta`; `clientInfo` is optional, self-reported metadata intended for display and logging, **not authenticated identity**. On Streamable HTTP, POST requests must carry an `Mcp-Method` header mirroring the JSON-RPC method, and an `Mcp-Name` header mirroring `params.name` or `params.uri` when the request names a tool, resource or prompt; gateways can route, authorise and meter without parsing JSON bodies. Capability discovery is available through `server/discover`. Client-side interactions such as elicitation use **multi-round-trip requests (MRTR)** rather than server-initiated requests on a long-lived session; **sampling, roots and logging are deprecated** in this revision, and the legacy HTTP+SSE transport is officially deprecated. If you are testing an older deployment, identify which revision it implements before applying the controls below; the security questions are similar, but the wire evidence is different.
+> This chapter describes the **2026-07-28** specification, the largest revision since MCP launched. The modern protocol has a **stateless core**: the `initialize`/`initialized` handshake and the `Mcp-Session-Id` session mechanism of the 2025 era are gone. Each request is self-describing and carries the protocol version and client capabilities in `_meta`; `clientInfo` is optional, self-reported metadata intended for display and logging, **not authenticated identity**. On Streamable HTTP, POST requests must carry an `MCP-Protocol-Version` header matching the version in the request body, an `Mcp-Method` header mirroring the JSON-RPC method, and an `Mcp-Name` header mirroring `params.name` or `params.uri` when the request names a tool, resource or prompt; gateways can route, authorise and meter without parsing JSON bodies. Every modern server must implement `server/discover`; clients may call it to discover supported versions and capabilities. Client-side interactions such as elicitation use **multi-round-trip requests (MRTR)** rather than server-initiated requests on a long-lived session; **sampling, roots and logging are deprecated** in this revision, and the legacy HTTP+SSE transport remains officially deprecated. If you are testing an older deployment, identify which revision it implements before applying the controls below; the security questions are similar, but the wire evidence is different.
 
 ## <a id="m7-arch"></a>7.1 MCP in one page
 
-MCP uses JSON-RPC 2.0 between a *host* (the application the user runs), one or more *clients* (one per server connection), and *servers* that expose capabilities. Transports are stdio for local processes and Streamable HTTP for remote servers. The older HTTP+SSE transport still appears in some deployments but is **officially deprecated** in 2026-07-28, with a year-long off-ramp. In the 2026-07-28 revision the HTTP core is stateless: any request can land on any server instance behind an ordinary load balancer. Requests carry their own protocol version and client capabilities in `_meta`, so there is no initialization-time capability negotiation to rely on. The `clientInfo` field may also be present, but it is self-reported and must not be treated as a verified principal. Streamable HTTP POST requests must include `Mcp-Method` on every request (for example `tools/call`) and `Mcp-Name` when the request carries `params.name` or `params.uri` — as it does for `tools/call`, `resources/read` and `prompts/get` — which let a gateway, WAF or rate limiter authorise and meter without inspecting the body. Optional `server/discover` lets a client enumerate what a server supports, and its list results are cacheable. Interactive server-to-client operations use MRTR: the server returns a result indicating that input is required, the client obtains it, and the request is retried with a `requestState` value that carries the interaction across rounds.
+MCP uses JSON-RPC 2.0 between a *host* (the application the user runs), one or more *clients* (one per server connection), and *servers* that expose capabilities. Transports are stdio for local processes and Streamable HTTP for remote servers. The older HTTP+SSE transport still appears in some deployments but has been **officially deprecated since 2025-03-26** and remains on the removal path in 2026-07-28. In the 2026-07-28 revision the HTTP core is stateless: any request can land on any server instance behind an ordinary load balancer. Requests carry their own protocol version and client capabilities in `_meta`, so there is no initialization-time capability negotiation to rely on. The `clientInfo` field may also be present, but it is self-reported and must not be treated as a verified principal. Streamable HTTP POST requests must include `MCP-Protocol-Version` matching the version in the body, `Mcp-Method` on every request (for example `tools/call`), and `Mcp-Name` when the request carries `params.name` or `params.uri` — as it does for `tools/call`, `resources/read` and `prompts/get` — which let a gateway, WAF or rate limiter authorise and meter without inspecting the body. Every modern server must implement `server/discover`; clients may call it to enumerate supported versions, capabilities and self-reported identity, and its discovery response is cacheable. Interactive server-to-client operations use MRTR: the server returns an `InputRequiredResult` containing `inputRequests`, the client gathers the requested input, and the request is retried with `inputResponses` plus the `requestState` value that carries the interaction across rounds.
 
 | Primitive | Direction | Security relevance |
 | --- | --- | --- |
@@ -2547,7 +2547,7 @@ Remote MCP servers that implement the MCP Authorization specification use an **O
 - **Per-server credentials.** One token per server, with a narrow audience and short lifetime. Never a single token shared by every server in the host.
 - **Consent binding.** Bind consent to the client, the server, the scopes and the redirect URI. A change in any of these should require re-consent.
 - **Per-request identity.** In the stateless core, do not assume that an earlier connection established who the caller is. Validate the presented credential, protocol version and capability claims on every request, and reject requests whose routing metadata disagrees with the actual method or target.
-- **State-handle integrity.** Integrity-protect MRTR `requestState`, bind it to the client, request and method, give it a short expiry, and reject reuse across contexts. Encrypt it, or keep the state server-side behind an opaque handle, when it contains confidential data. Confidentiality is conditional on the content; integrity and binding are not.
+- **State-handle integrity.** Integrity-protect MRTR `requestState`, bind it to the client, request and method, give it a short expiry, and reject reuse across contexts. Encrypt it, or keep the state server-side behind an opaque handle, when it contains confidential data. Confidentiality is conditional on the content; integrity and binding are not. Treat `inputResponses` as untrusted input too: validate them against the requested schema and the original request before acting on them.
 
 ### Sampling, elicitation and MRTR abuse
 
@@ -2569,7 +2569,7 @@ A stdio server launched with `npx` or `uvx` runs code from a package registry wi
 | **Scoped credentials** | Per-server, per-user tokens with audience and short TTL | No ambient cloud identity; no shared service accounts |
 | **State-handle integrity** | Integrity-protect, bind and expire MRTR `requestState`; encrypt it or store confidential state server-side | Prevents tampering, replay and cross-context resumption |
 | **Idempotent effects** | Idempotency keys or deduplication on every tool with an external side effect | Retries after interrupted calls must not duplicate actions |
-| **Gateway header policy** | Require `Mcp-Method` on every POST and `Mcp-Name` where applicable; validate both against the body and the target; authorise and rate-limit on the headers | Routable, meterable policy without body inspection; rejects header/body confusion |
+| **Gateway header policy** | Require `MCP-Protocol-Version` and `Mcp-Method` on every POST and `Mcp-Name` where applicable; validate all against the body and the target; authorise and rate-limit on the headers | Routable, meterable policy without body inspection; rejects header/body confusion |
 | **Discovery hygiene** | Authenticate `server/discover`; treat cached capability lists as security-relevant data with a short TTL | Capability enumeration and stale-cache confusion |
 | **Per-tool policy** | Allow, deny or require approval by tool and by argument pattern | Destructive operations always require approval |
 | **Description review** | Human review of raw definitions; scan for hidden text and instruction-like content | Diff on every update |
@@ -2590,7 +2590,7 @@ A stdio server launched with `npx` or `uvx` runs code from a package registry wi
 | Suspicious description content | Instructions, URLs, file paths or credential names in a description | Classifier plus regex; flag hidden Unicode |
 | Argument anomalies | Paths outside roots, metadata IPs, shell metacharacters | Validate against schema and policy; alert on rejects |
 | New server | A server appears in a host's config without change approval | Config drift detection on endpoints |
-| Header/body mismatch | `Mcp-Method` or `Mcp-Name` disagrees with the JSON-RPC method, `params.name` or target | Reject at the gateway; alert on repeated mismatches |
+| Header/body mismatch | `MCP-Protocol-Version`, `Mcp-Method` or `Mcp-Name` disagrees with the body, JSON-RPC method, `params.name` or target | Reject at the gateway; alert on repeated mismatches |
 | Notification anomaly | Unexpected change event, re-fetch storm, or progress for a different request | Bind events to subscriptions and request IDs; alert on orphaned progress |
 | State-handle abuse | MRTR `requestState` replayed, expired, or used by a different client or method | Verify signature, binding and expiry; alert on rejects |
 | Duplicate side effects | Two identical tool calls after an interrupted request | Idempotency-key collision alerts; dedupe at the effect boundary |
@@ -2601,7 +2601,7 @@ A stdio server launched with `npx` or `uvx` runs code from a package registry wi
 
 > **Deep dive · a protocol is not a security model**
 >
-> MCP uses JSON-RPC 2.0 between a host, one or more clients and one or more servers. Servers expose three main primitives: **tools** (functions the model can call), **resources** (data identified by URI) and **prompts** (templates the user can invoke). Client-side features are **elicitation** (requesting user input), plus **sampling** (a server asking the host's model to generate), **roots** (filesystem boundaries the client exposes) and logging. Since the **2026-07-28** revision **sampling, roots and logging are deprecated** under SEP-2577 and should not be adopted by new implementations; they remain reachable for at least twelve months, so legacy deployments still need testing. Elicitation is the active client feature. Transport is either stdio for local servers or Streamable HTTP for remote servers; the older HTTP+SSE transport is also officially deprecated. The HTTP core is **stateless**: the old `initialize` handshake and session ID are gone, each request carries its protocol version and client capabilities in `_meta`, `server/discover` exposes capability discovery, and interactive server-to-client operations use multi-round-trip requests (MRTR) with a `requestState` handle. Streamable HTTP POST requests must carry `Mcp-Method` on every request and `Mcp-Name` when the request names a tool, resource or prompt; gateways can route, authorise and meter without reading the body. Change events are delivered through a client-opened `subscriptions/listen` stream, while progress is request-scoped. `clientInfo` in `_meta` is self-reported and is not an authenticated identity. Identify the revision before interpreting traffic.
+> MCP uses JSON-RPC 2.0 between a host, one or more clients and one or more servers. Servers expose three main primitives: **tools** (functions the model can call), **resources** (data identified by URI) and **prompts** (templates the user can invoke). Client-side features are **elicitation** (requesting user input), plus **sampling** (a server asking the host's model to generate), **roots** (filesystem boundaries the client exposes) and logging. Since the **2026-07-28** revision **sampling, roots and logging are deprecated** under SEP-2577 and should not be adopted by new implementations; they remain reachable for at least twelve months, so legacy deployments still need testing. Elicitation is the active client feature. Transport is either stdio for local servers or Streamable HTTP for remote servers; the older HTTP+SSE transport is also officially deprecated. The HTTP core is **stateless**: the old `initialize` handshake and session ID are gone, each request carries its protocol version and client capabilities in `_meta`, every modern server must implement `server/discover`, and interactive server-to-client operations use multi-round-trip requests (MRTR) with `inputRequests`/`inputResponses` and a `requestState` handle. Streamable HTTP POST requests must carry `MCP-Protocol-Version` matching the body, `Mcp-Method` on every request, and `Mcp-Name` when the request names a tool, resource or prompt; gateways can route, authorise and meter without reading the body. Change events are delivered through a client-opened `subscriptions/listen` stream, while progress is request-scoped. `clientInfo` in `_meta` is self-reported and is not an authenticated identity. Identify the revision before interpreting traffic.
 >
 > The trust relationships are easy to get wrong. The host trusts the client library; the client trusts the server's declared capabilities; the model trusts the tool descriptions; the server trusts the arguments; and the downstream API trusts the token. Each arrow is a place where a compromised component can act with more authority than the user intended.
 >
@@ -2644,8 +2644,9 @@ A stdio server launched with `npx` or `uvx` runs code from a package registry wi
 > | Layer | Control |
 > | --- | --- |
 > | Supply chain | Allowlisted registry, pinned versions, hash verification, signed releases, reviewed source, no install-time scripts |
+> | Transport | Require `MCP-Protocol-Version` and `Mcp-Method` on every POST, plus `Mcp-Name` where applicable; validate all three against the body |
 > | Identity | Per-server identity, short-lived credentials, audience-bound tokens, no shared service accounts |
-> | Authorisation | Per-tool scopes, per-call policy, human approval for write/network/spend actions, deny by default; integrity-protected and expiring MRTR state |
+> | Authorisation | Per-tool scopes, per-call policy, human approval for write/network/spend actions, deny by default; integrity-protected and expiring MRTR state; validated `inputResponses` |
 > | Reliability | Idempotency keys on tools with external effects; deduplicate retries after interrupted stateless calls |
 > | Isolation | Container or sandbox, read-only filesystem, no host mounts, no cloud metadata, restricted egress |
 > | Context | Tool definitions pinned and displayed, results labelled untrusted, instruction hierarchy enforced outside the model |
@@ -2706,7 +2707,7 @@ A stdio server launched with `npx` or `uvx` runs code from a package registry wi
 > - Explain how model artefacts can execute code at load time and why file format matters.
 > - Design dataset-poisoning and backdoor experiments, and evaluate whether behavioural testing would catch them.
 > - Identify package, registry and model-hub attacks, including typosquatting and account compromise.
-> - Apply provenance controls: hashing, signing, pinning, SBOM/AIBOM and isolated loading.
+> - Apply provenance controls: hashing, signing, pinning, SBOM/AI-BOM and isolated loading.
 > - Detect tampering and anomalous model behaviour in the pipeline.
 
 > **The short version · for everyone in the room**
@@ -3219,13 +3220,13 @@ Restrict operational agents to read-only, narrowly scoped roles, require human a
 > 4. How does an automounted service account token enable lateral movement?
 > 5. What is the first control you would apply to a multi-tenant inference platform, and why?
 
-*Next · Module 10 — Threat Modeling for AI-Enabled Targets*
+*Next · Module 10 — Threat Modelling for AI-Enabled Targets*
 
 ---
 
 **Module 10**
 
-# <a id="m10"></a>Threat Modeling for AI-Enabled Targets
+# <a id="m10"></a>Threat Modelling for AI-Enabled Targets
 
 *Turning an inventory into a plan: assets, trust boundaries, attack paths, scoring and the controls that close them.*
 
@@ -3888,11 +3889,12 @@ Store the assembled prompt by reference, not only by hash: reproduction requires
 | **Logits** | The unnormalised scores a model produces for each vocabulary token before softmax converts them into probabilities. |
 | **LoRA** | Low-Rank Adaptation: parameter-efficient fine-tuning that learns a low-rank update *BA* to a frozen weight matrix. |
 | **MCP** | Model Context Protocol: JSON-RPC standard for exposing tools, resources and prompts to a model host. |
+| **MRTR** | Multi Round-Trip Requests: the MCP 2026-07-28 pattern in which a server returns `inputRequests` and an opaque `requestState`, and the client retries with `inputResponses`; replaces server-initiated requests on a long-lived session. |
 | **Membership inference** | Determining whether a specific record was part of a dataset or index. |
 | **Perplexity** | The exponentiated average negative log-likelihood of a token sequence; a measure of how well a model predicts text. |
 | **Pickle** | Python serialisation format capable of arbitrary object reconstruction; unsafe loaders can execute code on load. PyTorch 2.6+ defaults `torch.load` to `weights_only=True`. |
 | **Provenance** | Verifiable information about where an artefact or piece of content came from and how it was handled. |
-| **Quantization** | Storing weights or activations in lower numerical precision (for example INT8 or INT4) to reduce memory and compute, at some cost in accuracy or behavioural fidelity. |
+| **Quantisation** | Storing weights or activations in lower numerical precision (for example INT8 or INT4) to reduce memory and compute, at some cost in accuracy or behavioural fidelity. |
 | **RAG** | Retrieval-augmented generation: injecting retrieved content into a model's context. |
 | **Reranker** | A model that reorders retrieval candidates by relevance. |
 | **RLHF** | Reinforcement Learning from Human Feedback: training a reward model on human preferences and optimising a policy against it, usually with a KL penalty. |

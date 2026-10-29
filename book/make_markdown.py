@@ -138,8 +138,8 @@ def mark_table_pipes(soup: BeautifulSoup) -> None:
 
 
 def main() -> None:
-    soup = BeautifulSoup(SOURCE.read_text(encoding="utf-8"), "html.parser")
     raw_html = SOURCE.read_text(encoding="utf-8")
+    soup = BeautifulSoup(raw_html, "html.parser")
     raw_figures = re.findall(r"<figure\b.*?</figure>", raw_html, re.S)
     raw_svgs = []
     for block in raw_figures:
@@ -424,7 +424,7 @@ def main() -> None:
             'author: "AI Security Curriculum"',
             'edition: "1.1"',
             'date: "2026"',
-            'description: "Course handbook for an eleven-module red team curriculum, with two foundation primers on tokens, transformers and neural networks and a plain-language track in every chapter."',
+            'description: "Course handbook for an eleven-module red team curriculum, with two foundation primers on tokens, transformers and neural networks and a plain-language track in every module and foundation primer."',
             "---",
             "",
         ]

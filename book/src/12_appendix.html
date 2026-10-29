@@ -174,11 +174,12 @@ services:
       <tr><td><b>Logits</b></td><td>The unnormalised scores a model produces for each vocabulary token before softmax converts them into probabilities.</td></tr>
       <tr><td><b>LoRA</b></td><td>Low-Rank Adaptation: parameter-efficient fine-tuning that learns a low-rank update <i>BA</i> to a frozen weight matrix.</td></tr>
       <tr><td><b>MCP</b></td><td>Model Context Protocol: JSON-RPC standard for exposing tools, resources and prompts to a model host.</td></tr>
+      <tr><td><b>MRTR</b></td><td>Multi Round-Trip Requests: the MCP 2026-07-28 pattern in which a server returns <code>inputRequests</code> and an opaque <code>requestState</code>, and the client retries with <code>inputResponses</code>; replaces server-initiated requests on a long-lived session.</td></tr>
       <tr><td><b>Membership inference</b></td><td>Determining whether a specific record was part of a dataset or index.</td></tr>
       <tr><td><b>Perplexity</b></td><td>The exponentiated average negative log-likelihood of a token sequence; a measure of how well a model predicts text.</td></tr>
       <tr><td><b>Pickle</b></td><td>Python serialisation format capable of arbitrary object reconstruction; unsafe loaders can execute code on load. PyTorch 2.6+ defaults <code>torch.load</code> to <code>weights_only=True</code>.</td></tr>
       <tr><td><b>Provenance</b></td><td>Verifiable information about where an artefact or piece of content came from and how it was handled.</td></tr>
-      <tr><td><b>Quantization</b></td><td>Storing weights or activations in lower numerical precision (for example INT8 or INT4) to reduce memory and compute, at some cost in accuracy or behavioural fidelity.</td></tr>
+      <tr><td><b>Quantisation</b></td><td>Storing weights or activations in lower numerical precision (for example INT8 or INT4) to reduce memory and compute, at some cost in accuracy or behavioural fidelity.</td></tr>
       <tr><td><b>RAG</b></td><td>Retrieval-augmented generation: injecting retrieved content into a model's context.</td></tr>
       <tr><td><b>Reranker</b></td><td>A model that reorders retrieval candidates by relevance.</td></tr>
       <tr><td><b>RLHF</b></td><td>Reinforcement Learning from Human Feedback: training a reward model on human preferences and optimising a policy against it, usually with a KL penalty.</td></tr>

@@ -4,7 +4,7 @@ A practitioner's handbook for assessing the security of large language models, a
 
 **Edition 1.1 · 2026 · AI Security Curriculum**
 
-The handbook is an eleven-module red team curriculum with two foundation primers. Every chapter is written on two levels: a plain-language short version, then a technical deep dive with architecture, attack surface, evidence, detection and controls.
+The handbook is an eleven-module red team curriculum with two foundation primers. Every module and foundation primer is written on two levels: a plain-language short version, then a technical deep dive with architecture, attack surface, evidence, detection and controls.
 
 > **Authorised testing only.** All techniques and payloads are intended for systems you own or have explicit written permission to test. See the ethics and authorisation chapter before running anything.
 
@@ -32,10 +32,10 @@ The handbook is an eleven-module red team curriculum with two foundation primers
 
 8. Supply Chain Attacks on AI/ML Systems
 9. AI Infrastructure and Deployment Exploits
-10. Threat Modeling for AI-Enabled Targets
+10. Threat Modelling for AI-Enabled Targets
 11. Assembling the Pieces (capstone)
 
-Plus front matter on authorisation, ethics and safety, and appendices with lab build instructions and reporting templates.
+Plus front matter on authorisation, ethics and safety, and appendices with lab build instructions, tooling, framework mappings, a telemetry schema, glossary and references. Reporting templates are in the capstone module.
 
 ## Repository layout
 
@@ -96,6 +96,6 @@ WeasyPrint also needs the usual native libraries (Pango, cairo and related packa
 
 Edit the fragments in `book/src/` (and `book/src/tracks/` for the per-module track panels), then rebuild. Do not edit the generated `book/book.html`, PDF, Markdown or figures directly — they are overwritten on the next build.
 
-## License
+## Licence
 
-No license file is currently included in this repository. Contact the maintainer before redistributing or reusing the material.
+No licence file is currently included in this repository. Contact the maintainer before redistributing or reusing the material.

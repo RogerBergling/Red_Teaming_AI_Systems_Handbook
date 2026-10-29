@@ -42,7 +42,7 @@
     </ul>
 
     <h3>The tool call is the authorisation event</h3>
-    <p>Many agent implementations historically authorize tool availability more coarsely than individual actions: they check whether a tool exists, not whether this user, in this task, should be allowed to invoke it with these arguments. That gap produces the classic <b>confused deputy</b>: the agent holds a powerful credential, the attacker cannot use it directly, but the attacker can persuade the agent to use it on their behalf. The fix is not a better system prompt. It is per-action authorisation in deterministic code: bind the tool call to the end user's identity, constrain the arguments, require approval for irreversible or high-value actions, and log the decision with the identity that executed it.</p>
+    <p>Many agent implementations historically authorise tool availability more coarsely than individual actions: they check whether a tool exists, not whether this user, in this task, should be allowed to invoke it with these arguments. That gap produces the classic <b>confused deputy</b>: the agent holds a powerful credential, the attacker cannot use it directly, but the attacker can persuade the agent to use it on their behalf. The fix is not a better system prompt. It is per-action authorisation in deterministic code: bind the tool call to the end user's identity, constrain the arguments, require approval for irreversible or high-value actions, and log the decision with the identity that executed it.</p>
 
     <table>
       <thead><tr><th style="width:24%">Tool class</th><th style="width:38%">Abuse pattern</th><th>Minimum control</th></tr></thead>

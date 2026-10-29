@@ -28,8 +28,16 @@ PART_OF = {
     "00b": "Part 0 — How the machine works",
     "00c": "Part 0 — How the machine works",
     "01": "Part I — Foundations",
+    "02": "Part I — Foundations",
     "03": "Part II — Attacking the application layer",
+    "04": "Part II — Attacking the application layer",
+    "05": "Part II — Attacking the application layer",
+    "06": "Part II — Attacking the application layer",
+    "07": "Part II — Attacking the application layer",
     "08": "Part III — Infrastructure, supply chain and strategy",
+    "09": "Part III — Infrastructure, supply chain and strategy",
+    "10": "Part III — Infrastructure, supply chain and strategy",
+    "11": "Part III — Infrastructure, supply chain and strategy",
     "12": "Appendices",
 }
 
@@ -113,7 +121,7 @@ doc = f"""<!DOCTYPE html>
 <meta charset="utf-8">
 <title>Red Teaming AI Systems — A Practitioner's Course Handbook</title>
 <meta name="author" content="AI Security Curriculum">
-<meta name="description" content="Course handbook for an eleven-module red team curriculum on attacking and defending AI systems, with two foundation primers on tokens, transformers and neural networks and a plain-language track in every chapter.">
+<meta name="description" content="Course handbook for an eleven-module red team curriculum on attacking and defending AI systems, with two foundation primers on tokens, transformers and neural networks and a plain-language track in every module and foundation primer.">
 <meta name="keywords" content="AI red teaming, LLM security, prompt injection, RAG, MCP, A2A, adversarial ML, tokenization, transformers, neural networks">
 <link rel="stylesheet" href="style.css">
 </head>

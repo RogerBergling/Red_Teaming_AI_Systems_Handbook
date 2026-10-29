@@ -37,12 +37,12 @@
     <div class="kicker">Professional security curriculum &middot; Edition 1.1</div>
     <h1>Red Teaming<br><span class="accent">AI Systems</span></h1>
     <div class="rule"></div>
-    <div class="sub">A practitioner's handbook for assessing the security of large language models, autonomous agents, retrieval pipelines and the infrastructure that runs them — with a plain-language track for every chapter.</div>
+    <div class="sub">A practitioner's handbook for assessing the security of large language models, autonomous agents, retrieval pipelines and the infrastructure that runs them — with a plain-language track for every module and foundation primer.</div>
     <div class="meta">
       <b>Eleven modules + two foundation primers</b> &middot; from tokens and neurons to a full-scope capstone<br>
-      <b>Two tracks in every chapter</b> &middot; the short version for everyone, then the deep technical dive<br>
+      <b>Two tracks in every module and primer</b> &middot; the short version for everyone, then the deep technical dive<br>
       <b>For</b> red team operators, AI engineers, detection engineers and security architects<br>
-      <b>Companion material</b> &middot; lab builds, threat models, detection queries and reporting templates
+      <b>Companion material</b> &middot; lab builds, threat models, detection guidance and reporting templates
     </div>
   </div>
 
@@ -73,16 +73,16 @@
   <div class="kv">
     <div class="row"><div class="k">Audience</div><div class="v">Security practitioners moving into AI red teaming; ML engineers who need an adversary's view; blue teams building AI detections; architects designing agentic systems.</div></div>
     <div class="row"><div class="k">Prerequisites</div><div class="v">Comfort with Linux, HTTP, Python and containerisation. Basic familiarity with LLM APIs and vector search helps but is taught from first principles in Modules 1 and 5.</div></div>
-    <div class="row"><div class="k">Pacing</div><div class="v">A 12-week instructor-led course, or a five-day intensive using Modules 1–2 as pre-reading. The capstone is designed for two to three days of lab time.</div></div>
+    <div class="row"><div class="k">Pacing</div><div class="v">A 12-week instructor-led course, or a five-day intensive using Modules 1–2 as pre-reading. The capstone is designed as a separate five-day lab engagement.</div></div>
     <div class="row"><div class="k">Lab requirement</div><div class="v">One host with 32 GB RAM (GPU optional), Docker or Podman, and no route to production systems. Appendix A contains the build.</div></div>
   </div>
 
-  <h3>Two tracks through every chapter</h3>
-  <p>Every module and both foundation primers are written on two levels. <strong>The short version</strong> appears first, in a pale teal panel: no mathematics, no assumed ML background, just the idea, the moving parts and why they matter. It is written for the executive, the auditor, the junior analyst and the experienced operator who wants the shape of the chapter before the detail. <strong>The deep dive</strong> follows immediately: the same subject treated technically, with architecture, equations, failure modes, evidence and controls. Later in each chapter a shaded <em>Deep dive</em> panel adds material for specialists — formalisms, attack trees, mathematics or measurement detail that would slow down a first read. You can read a chapter in either track and still follow the argument; reading both gives you the full picture.</p>
+  <h3>Two tracks through every module and primer</h3>
+  <p>Every module and both foundation primers are written on two levels. <strong>The short version</strong> appears first, in a pale teal panel: no mathematics, no assumed ML background, just the idea, the moving parts and why they matter. It is written for the executive, the auditor, the junior analyst and the experienced operator who wants the shape of the module before the detail. <strong>The deep dive</strong> follows immediately: the same subject treated technically, with architecture, equations, failure modes, evidence and controls. Later in each module and primer a shaded <em>Deep dive</em> panel adds material for specialists — formalisms, attack trees, mathematics or measurement detail that would slow down a first read. You can read a module or primer in either track and still follow the argument; reading both gives you the full picture.</p>
   <p>The two foundation primers in Part 0 — <em>How AI Reads: Tokens and Transformers</em> and <em>How Neural Networks Learn</em> — assume no prior machine learning. They explain how text becomes tokens, how attention mixes context, how a network is trained by gradient descent, and where each of those mechanisms becomes an attack surface. Readers with an ML background can treat them as a reference; readers without one should read them before Module 1.</p>
 
   <h3>Structure of each module</h3>
-  <p>Every module opens with learning objectives and a short framing of why the topic matters to an adversary. The body moves through architecture, attack surface, techniques, a worked lab, detection and controls. Modules close with knowledge checks and a short list of primary sources. <strong>Field note</strong> boxes contain operator judgment that does not fit neatly into a procedure; <strong>Defender's view</strong> boxes describe what the technique looks like in telemetry; <strong>Lab</strong> boxes give the exercise brief. <strong>The short version</strong> and <strong>The deep dive</strong> labels mark the two explanatory tracks described above.</p>
+  <p>Every module opens with learning objectives and a short framing of why the topic matters to an adversary. The body moves through architecture, attack surface, techniques, a worked lab, detection and controls. Modules close with knowledge checks and key takeaways; primary sources are collected in Appendix F. <strong>Field note</strong> boxes contain operator judgment that does not fit neatly into a procedure; <strong>Defender's view</strong> boxes describe what the technique looks like in telemetry; <strong>Lab</strong> boxes give the exercise brief. <strong>The short version</strong> and <strong>The deep dive</strong> labels mark the two explanatory tracks described above.</p>
 
   <h3>Conventions</h3>
   <p>Commands and payloads are shown in monospace. Payloads are illustrative and written against the intentionally vulnerable lab stack; they are not tuned for any third-party product. Hostnames such as <code>lab.local</code>, <code>agent.lab.local</code> and <code>rag.lab.local</code> refer to the local environment. Where a technique depends on a specific product or protocol version, the version is stated. Default ports and API paths are included because both attackers and defenders need them, and because exposure of these services is one of the most common real-world findings in AI environments.</p>
