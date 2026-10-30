@@ -45,6 +45,7 @@ Plus front matter on authorisation, ethics and safety, and appendices with lab b
 ├── Red_Teaming_AI_Systems_Handbook.pdf   # PDF edition (root)
 ├── Red_Teaming_AI_Systems_Handbook_figures/
 │   └── figure-*.svg                      # Figures referenced by the Markdown
+├── requirements.txt                      # Pinned Python build dependencies
 └── book/
     ├── src/                              # HTML source fragments, one per chapter
     │   └── tracks/                       # Per-module plain-language/deep-dive panels
@@ -69,10 +70,20 @@ Requirements:
 - [WeasyPrint](https://weasyprint.org/) (PDF rendering)
 - `beautifulsoup4` and `markdownify` (Markdown conversion)
 
-Install the Python dependencies:
+Install the pinned Python dependencies:
 
 ```bash
-python3 -m pip install weasyprint beautifulsoup4 markdownify
+python3 -m pip install -r requirements.txt
+```
+
+The versions in `requirements.txt` are pinned deliberately. Keep them current:
+WeasyPrint releases before 70.0 have published SSRF and RCE advisories, and
+markdownify releases before 0.14.1 have a memory-exhaustion advisory. To check
+the pins for known vulnerabilities:
+
+```bash
+python3 -m pip install pip-audit
+python3 -m pip_audit -r requirements.txt
 ```
 
 Build both editions from the repository root:

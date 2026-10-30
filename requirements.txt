@@ -1,0 +1,6 @@
+# Build dependencies for the handbook.
+# Versions are pinned so builds are reproducible and can be audited.
+# Last verified against OSV/PyPI on 2026-10-30.
+weasyprint==70.0
+beautifulsoup4==4.15.0
+markdownify==1.2.3
