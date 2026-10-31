@@ -1,0 +1,66 @@
+name: Build and audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install native PDF libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fonts-liberation \
+            libgdk-pixbuf-2.0-0 \
+            libpango-1.0-0 \
+            libpangoft2-1.0-0
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Audit dependencies
+        run: python -m pip_audit -r requirements.txt -r requirements-dev.txt
+
+      - name: Validate sources and run tests
+        run: make check PYTHON=python
+
+      - name: Build editions
+        run: make build PYTHON=python
+
+      - name: Check the PDF was produced
+        run: test -s Red_Teaming_AI_Systems_Handbook.pdf
+
+      - name: Check generated files are current
+        run: |
+          if ! git diff --exit-code -- \
+            book/book.html \
+            Red_Teaming_AI_Systems_Handbook.md \
+            Red_Teaming_AI_Systems_Handbook_figures; then
+            echo "::error::Generated files are stale. Run 'make build' and commit the result."
+            exit 1
+          fi

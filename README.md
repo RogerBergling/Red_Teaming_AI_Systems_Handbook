@@ -45,7 +45,12 @@ Plus front matter on authorisation, ethics and safety, and appendices with lab b
 ├── Red_Teaming_AI_Systems_Handbook.pdf   # PDF edition (root)
 ├── Red_Teaming_AI_Systems_Handbook_figures/
 │   └── figure-*.svg                      # Figures referenced by the Markdown
+├── Makefile                              # build / check / audit / clean targets
 ├── requirements.txt                      # Pinned Python build dependencies
+├── requirements-dev.txt                  # Pinned audit/test tooling
+├── SECURITY.md                           # How to report build-pipeline issues
+├── tests/                                # Unit tests for both build scripts
+├── .github/workflows/ci.yml              # CI: audit, validate, build, freshness
 └── book/
     ├── src/                              # HTML source fragments, one per chapter
     │   └── tracks/                       # Per-module plain-language/deep-dive panels
@@ -78,15 +83,15 @@ python3 -m pip install -r requirements.txt
 
 The versions in `requirements.txt` are pinned deliberately. Keep them current:
 WeasyPrint releases before 70.0 have published SSRF and RCE advisories, and
-markdownify releases before 0.14.1 have a memory-exhaustion advisory. To check
-the pins for known vulnerabilities:
-
-```bash
-python3 -m pip install pip-audit
-python3 -m pip_audit -r requirements.txt
-```
+markdownify releases before 0.14.1 have a memory-exhaustion advisory.
 
 Build both editions from the repository root:
+
+```bash
+make build
+```
+
+Or run the scripts directly:
 
 ```bash
 cd book
@@ -94,18 +99,51 @@ python3 build.py
 python3 make_markdown.py
 ```
 
-This writes:
+A full build writes:
 
 - `book/book.html`
 - `Red_Teaming_AI_Systems_Handbook.pdf`
 - `Red_Teaming_AI_Systems_Handbook.md`
 - `Red_Teaming_AI_Systems_Handbook_figures/*.svg`
 
-WeasyPrint also needs the usual native libraries (Pango, cairo and related packages); see the WeasyPrint installation guide for your platform if the PDF step fails.
+WeasyPrint also needs the usual native libraries (Pango and related packages);
+see the WeasyPrint installation guide for your platform if the PDF step fails.
+If those libraries are unavailable, rebuild the HTML and Markdown editions only:
+
+```bash
+make html
+# equivalent to: cd book && python3 build.py --html-only && python3 make_markdown.py
+```
+
+### Validation, tests and dependency audit
+
+`build.py` validates the sources before writing anything: duplicate ids, broken
+internal links, missing TOC markers, malformed figures and missing track
+markers are reported together. `make check` runs that validation in strict mode
+(warnings fail the build) and then runs the unit tests:
+
+```bash
+make check
+```
+
+Audit the pinned build and development dependencies with `pip-audit`:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+make audit
+# or: python3 -m pip_audit -r requirements.txt -r requirements-dev.txt
+```
+
+`build.py --check` and `make_markdown.py --check` perform validation without
+writing files. CI runs the same checks on every push and pull request, audits
+the dependencies, builds both editions and verifies that the committed
+generated files are current.
 
 ## Contributing
 
-Edit the fragments in `book/src/` (and `book/src/tracks/` for the per-module track panels), then rebuild. Do not edit the generated `book/book.html`, PDF, Markdown or figures directly — they are overwritten on the next build.
+Edit the fragments in `book/src/` (and `book/src/tracks/` for the per-module track panels), then run `make check` and `make build`. Do not edit the generated `book/book.html`, PDF, Markdown or figures directly — they are overwritten on the next build.
+
+For vulnerabilities in the build pipeline, see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
