@@ -45,6 +45,7 @@ Plus front matter on authorisation, ethics and safety, and appendices with lab b
 ├── Red_Teaming_AI_Systems_Handbook.pdf   # PDF edition (root)
 ├── Red_Teaming_AI_Systems_Handbook_figures/
 │   └── figure-*.svg                      # Figures referenced by the Markdown
+├── LICENSE                               # MIT licence
 ├── Makefile                              # build / check / audit / clean targets
 ├── requirements.txt                      # Pinned Python build dependencies
 ├── requirements-dev.txt                  # Pinned audit/test tooling
@@ -147,4 +148,4 @@ For vulnerabilities in the build pipeline, see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-No licence file is currently included in this repository. Contact the maintainer before redistributing or reusing the material.
+Released under the [MIT License](LICENSE).
