@@ -33,8 +33,12 @@ STYLESHEET = ROOT / "style.css"
 DEFAULT_HTML_OUT = ROOT / "book.html"
 DEFAULT_PDF_OUT = ROOT.parent / "Red_Teaming_AI_Systems_Handbook.pdf"
 
-# Fixed date for reproducible PDF metadata. Update when a new edition is cut.
-EDITION_DATE = "2026-10-29"
+# Build identity. Update these together with the cover and README when a new
+# edition is cut. The build number is timestamp-based so it is unique without
+# depending on CI run numbering.
+EDITION_DATE = "2026-11-01"
+BUILD_NUMBER = "20261101.1114"
+BUILD_TIME = "2026-11-01 11:14"
 
 TRACKED_MODULES = {f"{number:02d}" for number in range(1, 12)}
 
@@ -350,6 +354,8 @@ def build_document(
 <meta name="keywords" content="AI red teaming, LLM security, prompt injection, RAG, MCP, A2A, adversarial ML, tokenization, transformers, neural networks">
 <meta name="dcterms.created" content="{EDITION_DATE}">
 <meta name="dcterms.modified" content="{EDITION_DATE}">
+<meta name="build" content="{BUILD_NUMBER}">
+<meta name="build-time" content="{BUILD_TIME}">
 <link rel="stylesheet" href="{html.escape(stylesheet_href)}">
 </head>
 <body>

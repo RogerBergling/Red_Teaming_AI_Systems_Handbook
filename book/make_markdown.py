@@ -244,7 +244,7 @@ def convert(source: Path, md_path: Path, figures_dir: Path) -> tuple[str, dict[s
     bottom = plain(
         require(cover.select_one(".bottom"), "cover footer").get_text(" ", strip=True)
     )
-    bottom = re.sub(r"\s+Version\s+", " — Version ", bottom)
+    bottom = re.sub(r"\s+(Version|Edition)\s+", r" — \1 ", bottom)
     cover_md_parts = [
         f"# {title}",
         "",
@@ -525,7 +525,9 @@ def convert(source: Path, md_path: Path, figures_dir: Path) -> tuple[str, dict[s
             'subtitle: "A practitioner\'s handbook for assessing the security of large language models, autonomous agents, retrieval pipelines and the infrastructure that runs them"',
             'author: "AI Security Curriculum"',
             'edition: "1.1"',
-            'date: "2026"',
+            'build: "20261101.1114"',
+            'build_time: "2026-11-01 11:14"',
+            'date: "2026-11-01"',
             'description: "Course handbook for an eleven-module red team curriculum, with two foundation primers on tokens, transformers and neural networks and a plain-language track in every module and foundation primer."',
             "---",
             "",

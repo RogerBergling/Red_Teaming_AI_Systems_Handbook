@@ -3,7 +3,9 @@ title: "Red Teaming AI Systems — A Practitioner's Course Handbook"
 subtitle: "A practitioner's handbook for assessing the security of large language models, autonomous agents, retrieval pipelines and the infrastructure that runs them"
 author: "AI Security Curriculum"
 edition: "1.1"
-date: "2026"
+build: "20261101.1114"
+build_time: "2026-11-01 11:14"
+date: "2026-11-01"
 description: "Course handbook for an eleven-module red team curriculum, with two foundation primers on tokens, transformers and neural networks and a plain-language track in every module and foundation primer."
 ---
 
@@ -13,12 +15,13 @@ description: "Course handbook for an eleven-module red team curriculum, with two
 
 **Professional security curriculum · Edition 1.1**
 
+- Version 1.1 · Build 20261101.1114 · 2026-11-01 11:14
 - Eleven modules + two foundation primers · from tokens and neurons to a full-scope capstone
 - Two tracks in every module and primer · the short version for everyone, then the deep technical dive
 - For red team operators, AI engineers, detection engineers and security architects
 - Companion material · lab builds, threat models, detection guidance and reporting templates
 
-> Authorised testing only · Defensive guidance included throughout — Version 1.1 · 2026
+> Authorised testing only · Defensive guidance included throughout — Edition 1.1 · 2026
 
 > **Markdown edition.** Figures are in `Red_Teaming_AI_Systems_Handbook_figures/`; open this file from the same folder as that directory so the images resolve.
 

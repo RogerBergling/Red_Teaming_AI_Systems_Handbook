@@ -8,6 +8,12 @@ The handbook is an eleven-module red team curriculum with two foundation primers
 
 > **Authorised testing only.** All techniques and payloads are intended for systems you own or have explicit written permission to test. See the ethics and authorisation chapter before running anything.
 
+## Build information
+
+| Version | Build number | Build date | Build time |
+| --- | --- | --- | --- |
+| 1.1 | 20261101.1114 | 2026-11-01 | 11:14 |
+
 ## Contents
 
 **Part 0 — How the machine works**
