@@ -1,10 +1,44 @@
 # Red Teaming AI Systems — A Practitioner's Course Handbook
 
-A practitioner's handbook for assessing the security of large language models, autonomous agents, retrieval pipelines and the infrastructure that runs them.
+A hands-on red team curriculum for LLMs, autonomous agents, RAG pipelines, MCP tooling and the infrastructure that runs them.
 
 **Edition 1.1 · 2026 · AI Security Curriculum**
 
-The handbook is an eleven-module red team curriculum with two foundation primers. Every module and foundation primer is written on two levels: a plain-language short version, then a technical deep dive with architecture, attack surface, evidence, detection and controls.
+## Quick start — the easy way
+
+**Just want to read it?** No installation is required.
+
+- **[Open the PDF](Red_Teaming_AI_Systems_Handbook.pdf)**
+- **[Open the Markdown edition](Red_Teaming_AI_Systems_Handbook.md)** — keep the `Red_Teaming_AI_Systems_Handbook_figures/` folder beside it so the images resolve.
+
+**Want to rebuild it?**
+
+```bash
+python3 -m pip install -r requirements.txt
+make build
+```
+
+If `make` is not available (for example on Windows):
+
+```bash
+python3 -m pip install -r requirements.txt
+cd book
+python3 build.py
+python3 make_markdown.py
+```
+
+**Want to check your changes?**
+
+```bash
+make check
+```
+
+No `make`? Run `python3 book/build.py --check --strict` and
+`python3 -m unittest discover -s tests`.
+
+PDF builds require Python 3.10+ and WeasyPrint's native Pango libraries. If those
+are unavailable, `make html` rebuilds only the HTML and Markdown editions. See
+[Building](#building) for details.
 
 > **Authorised testing only.** All techniques and payloads are intended for systems you own or have explicit written permission to test. See the ethics and authorisation chapter before running anything.
 
@@ -13,6 +47,12 @@ The handbook is an eleven-module red team curriculum with two foundation primers
 | Version | Build number | Build date | Build time |
 | --- | --- | --- | --- |
 | 1.1 | 20261101.1114 | 2026-11-01 | 11:14 |
+
+## What is this?
+
+The handbook is an eleven-module red team curriculum with two foundation primers. Every module and foundation primer is written on two levels: a plain-language short version, then a technical deep dive with architecture, attack surface, evidence, detection and controls.
+
+It is a book, not a service: there is no server to start. “Up and running” means opening the PDF or Markdown edition, or rebuilding them from source.
 
 ## Contents
 
@@ -67,11 +107,6 @@ Plus front matter on authorisation, ethics and safety, and appendices with lab b
     └── book.html                         # Generated combined HTML
 ```
 
-## Reading
-
-- **PDF:** open `Red_Teaming_AI_Systems_Handbook.pdf`.
-- **Markdown:** open `Red_Teaming_AI_Systems_Handbook.md` from this folder so the relative figure paths in `Red_Teaming_AI_Systems_Handbook_figures/` resolve.
-
 ## Building
 
 The source of truth is `book/src/`. `build.py` concatenates the HTML fragments in filename order, injects the plain-language and deep-dive panels from `book/src/tracks/`, generates the table of contents and renders the PDF. `make_markdown.py` then converts the generated `book.html` into the Markdown edition and extracts the SVG figures.
@@ -82,9 +117,11 @@ Requirements:
 - [WeasyPrint](https://weasyprint.org/) (PDF rendering)
 - `beautifulsoup4` and `markdownify` (Markdown conversion)
 
-Install the pinned Python dependencies:
+Use a virtual environment so build dependencies stay isolated:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 python3 -m pip install -r requirements.txt
 ```
 
